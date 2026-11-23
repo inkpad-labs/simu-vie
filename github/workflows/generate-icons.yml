@@ -1,0 +1,38 @@
+name: Generate PWA Icons
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Create icon-192.png and icon-512.png
+        run: |
+          convert -size 192x192 xc:"#0b1120" \
+            -fill "#38bdf8" -draw "circle 64,120 76,120" \
+            -fill "#22c55e" -draw "circle 124,72 138,72" \
+            -stroke "#38bdf8" -strokewidth 8 -draw "line 64,120 124,72" \
+            icon-192.png
+
+          convert -size 512x512 xc:"#0b1120" \
+            -fill "#38bdf8" -draw "circle 170,320 202,320" \
+            -fill "#22c55e" -draw "circle 330,192 368,192" \
+            -stroke "#38bdf8" -strokewidth 20 -draw "line 170,320 330,192" \
+            icon-512.png
+
+      - name: Commit generated icons
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add icon-192.png icon-512.png
+          git commit -m "chore: generate PWA icons" || exit 0
+          git push
