@@ -1,86 +1,33 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1120" />
-  <meta name="description" content="Calculez le coût réel d'un achat sur la durée par photo ou par recherche d'article." />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <title>CoûtRéel — Simulateur TCO</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <style>
-    :root {
-      --bg: #0b1120;
-      --surface: #111827;
-      --surface-2: #1e293b;
-      --border: #283548;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent-a: #38bdf8;
-      --accent-b: #f97316;
-      --good: #22c55e;
-      --danger: #ef4444;
-      --radius: 16px;
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; padding-bottom: 64px; }
-    header { position: sticky; top: 0; z-index: 10; background: rgba(11, 17, 32, 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; cursor: pointer; }
-    .brand-dot { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-a), var(--good)); }
-    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .btn-primary { background: var(--accent-a); color: #061220; border: none; border-radius: 999px; padding: 9px 15px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-    .btn-good { background: var(--good); color: #052e16; border: none; border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 0.84rem; cursor: pointer; }
-    .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 12px; font-size: 0.84rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-    .btn-danger { background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; border-radius: 8px; padding: 5px 9px; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
-    main { max-width: 960px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
-    .welcome { background: linear-gradient(145deg, rgba(56, 189, 248, 0.14), rgba(17, 24, 39, 0.96)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: var(--radius); padding: 22px 18px; display: grid; gap: 14px; }
-    .welcome h1 { margin: 0; font-size: 1.4rem; }
-    .welcome p { margin: 0; color: var(--muted); font-size: 0.94rem; }
-    .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .scan-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 12px; }
-    .scan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .search-row { display: grid; grid-template-columns: 1.5fr 0.8fr 1fr auto; gap: 8px; }
-    @media (max-width: 720px) { .search-row { grid-template-columns: 1fr 1fr; } }
-    .scan-preview { display: none; gap: 12px; align-items: center; background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
-    .scan-preview.visible { display: flex; }
-    .scan-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
-    .scan-status { font-size: 0.85rem; color: var(--muted); }
-    .presets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
-    .presets::-webkit-scrollbar { display: none; }
-    .preset-chip { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 9px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
-    .preset-chip.active { background: var(--surface-2); border-color: var(--accent-a); color: var(--accent-a); }
-    .banner { background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(34, 197, 94, 0.12)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
-    .banner-title { font-size: 1.08rem; font-weight: 700; color: #e0f2fe; }
-    .banner-sub { color: var(--muted); font-size: 0.9rem; }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
-    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
-    .kpi-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .kpi-value { font-size: 1.45rem; font-weight: 800; margin-top: 4px; }
-    .kpi-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
-    .positive { color: var(--good); }
-    .col-a { color: var(--accent-a); }
-    .col-b { color: var(--accent-b); }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
-    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
-    .card-title { font-size: 0.98rem; font-weight: 700; margin: 0; }
-    canvas { width: 100%; height: 270px; display: block; border-radius: 12px; background: #090e1a; }
-    .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.84rem; color: var(--muted); margin-top: 10px; }
-    .legend span { display: inline-flex; align-items: center; gap: 6px; }
-    .swatch { width: 10px; height: 10px; border-radius: 50%; }
-    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-    .field { margin-bottom: 12px; }
-    .field-top { display: flex; justify-content: space-between; font-size: 0.86rem; margin-bottom: 4px; }
-    .field-val { font-weight: 700; }
-    input[type="range"] { width: 100%; accent-color: var(--accent-a); cursor: pointer; }
-    input[type="number"], input[type="text"], select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 0.9rem; }
-    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .saved-list { display: grid; gap: 8px; }
-    .saved-item { background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .saved-meta { font-size: 0.8rem; color: var(--muted); }
-    .saved-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  </style>
-</head>
+const CACHE_NAME = "coutreel-cache-v9";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./icon-192.png",
+  "./icon-512.png"
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
+  );
+});
 <body>
   <header>
     <div class="brand" id="homeLogo"><span class="brand-dot"></span><span>CoûtRéel</span></div>
@@ -94,7 +41,7 @@
   <main>
     <section id="welcomeScreen" class="welcome">
       <h1>Comparez le vrai coût d'un achat sur la durée</h1>
-      <p>Ne vous fiez pas qu'au prix en rayon : intégrez le coût par utilisation, l'entretien annuel et la revente pour voir quelle option revient vraiment moins cher.</p>
+      <p>Évaluez le coût total (achat initial, coût par usage, frais annuels et revente) en recherchant un article ou en prenant une photo en rayon.</p>
       <div class="welcome-actions">
         <button id="startSimBtn" class="btn-primary" type="button">Accéder au comparateur</button>
         <button id="focusSearchBtn" class="btn-ghost" type="button">🔍 Chercher un article</button>
@@ -106,14 +53,14 @@
       <div class="scan-top">
         <div>
           <strong style="font-size:0.95rem;">🔍 Chercher un article ou scanner en rayon</strong>
-          <div class="scan-status">Saisissez un article & son prix, ou prenez une photo pour obtenir une proposition d'alternative</div>
+          <div class="scan-status">Recherche texte rapide ou photo de l'article/prix avec proposition d'alternative</div>
         </div>
         <label class="btn-primary" for="photoInput"><span>📷 Photo</span></label>
         <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" />
       </div>
 
       <div class="search-row">
-        <input id="searchItemInput" type="text" placeholder="Ex. Capsules café, Imprimante jet d'encre..." />
+        <input id="searchItemInput" type="text" placeholder="Ex. Capsules café, Imprimante..." />
         <input id="searchPriceInput" type="number" min="0" step="0.5" placeholder="Prix (€)" />
         <select id="catSelect">
           <option value="generic">Catégorie : Général</option>
@@ -121,8 +68,17 @@
           <option value="printer">Impression / Bureau</option>
           <option value="mobility">Mobilité / Trajet</option>
           <option value="tool">Outillage / Maison</option>
+          <option value="sub">Achat vs Abonnement</option>
         </select>
         <button id="searchGoBtn" class="btn-good" type="button">Comparer</button>
+      </div>
+
+      <div class="quick-pills" id="quickPills">
+        <button class="quick-pill" type="button" data-q="Capsules café" data-p="69" data-c="coffee">☕ Capsules (69 €)</button>
+        <button class="quick-pill" type="button" data-q="Imprimante jet d'encre" data-p="65" data-c="printer">🖨️ Jet d'encre (65 €)</button>
+        <button class="quick-pill" type="button" data-q="Trajet quotidien" data-p="0" data-c="mobility">🚗 Trajet (0 € initial)</button>
+        <button class="quick-pill" type="button" data-q="Outil électroportatif" data-p="89" data-c="tool">🔧 Outil (89 €)</button>
+        <button class="quick-pill" type="button" data-q="Service par abonnement" data-p="0" data-c="sub">💳 Abonnement</button>
       </div>
 
       <div id="scanPreview" class="scan-preview">
@@ -149,9 +105,15 @@
     <section class="card">
       <div class="card-header">
         <h2 class="card-title">Coût cumulé dans le temps</h2>
-        <button id="resetBtn" class="btn-ghost" type="button">Réinitialiser</button>
+        <div class="header-actions">
+          <button id="swapBtn" class="btn-ghost" type="button">Inverser A / B</button>
+          <button id="resetBtn" class="btn-ghost" type="button">Réinitialiser</button>
+        </div>
       </div>
-      <canvas id="chartCanvas"></canvas>
+      <div class="chart-wrap">
+        <canvas id="chartCanvas"></canvas>
+      </div>
+      <div id="hoverReadout" class="hover-readout">Touchez ou survolez le graphique pour lire les montants mois par mois.</div>
       <div class="legend">
         <span><i class="swatch" style="background: var(--accent-a)"></i><strong id="legA">Option A</strong></span>
         <span><i class="swatch" style="background: var(--accent-b)"></i><strong id="legB">Option B</strong></span>
@@ -160,7 +122,7 @@
 
     <section class="card">
       <div class="field">
-        <label class="field-top" for="simTitle"><span>Titre de la simulation (pour l'enregistrement)</span></label>
+        <label class="field-top" for="simTitle"><span>Titre de la simulation</span></label>
         <input id="simTitle" type="text" placeholder="Ex. Cafetière rayon maison ou Trajet quotidien" />
       </div>
       <h2 class="card-title" style="margin-bottom: 12px;">Fréquence & horizon</h2>
@@ -221,11 +183,14 @@
       printer: { nameA: "Modèle entrée de gamme (encre)", unitA: 0.18, annualA: 0, resaleA: 0, nameB: "Alternative plus durable / toner", initMultB: 3.2, initAddB: 60, unitB: 0.04, annualB: 10, resaleB: 25, usesPerWeek: 10 },
       mobility: { nameA: "Option usage / carburant élevé", unitA: 2.5, annualA: 80, resaleA: 0, nameB: "Alternative plus sobre / durable", initMultB: 1.8, initAddB: 250, unitB: 0.7, annualB: 100, resaleB: 200, usesPerWeek: 7 },
       tool: { nameA: "Équipement neuf standard", unitA: 0.5, annualA: 20, resaleA: 15, nameB: "Alternative occasion / pro durable", initMultB: 1.4, initAddB: 40, unitB: 0.2, annualB: 25, resaleB: 50, usesPerWeek: 4 },
+      sub: { nameA: "Formule abonnement récurrent", unitA: 0, annualA: 120, resaleA: 0, nameB: "Achat / licence durable", initMultB: 1, initAddB: 180, unitB: 0, annualB: 15, resaleB: 20, usesPerWeek: 7 },
       generic: { nameA: "Article choisi", unitA: 0.5, annualA: 10, resaleA: 0, nameB: "Alternative à coût d'usage réduit", initMultB: 2.2, initAddB: 50, unitB: 0.15, annualB: 20, resaleB: 25, usesPerWeek: 7 }
     };
 
-    const STORAGE_KEY = "coutreel_state_v8";
+    const STORAGE_KEY = "coutreel_state_v9";
     let state = loadState();
+    let activeLoadedIndex = null;
+
     function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
     function loadState() {
@@ -273,28 +238,29 @@
       if (/imprim|encre|toner|cartouche|feuille|papier/.test(t)) return "printer";
       if (/voiture|essence|diesel|electrique|velo|scooter|km|trajet/.test(t)) return "mobility";
       if (/perceuse|visseuse|outil|jardin|tondeuse|maison/.test(t)) return "tool";
+      if (/abonnement|mensuel|mois|forfait/.test(t)) return "sub";
       return "generic";
     }
 
     function proposeAlternative(priceA, catKey, detectedLabel) {
       const tpl = ALT_TEMPLATES[catKey] || ALT_TEMPLATES.generic;
-      const basePrice = Math.max(1, Number(priceA) || 49);
+      const basePrice = Math.max(0, Number(priceA) || 0);
       const c = state.current;
       c.a.name = detectedLabel || tpl.nameA; c.a.init = basePrice; c.a.unit = tpl.unitA; c.a.annual = tpl.annualA; c.a.resale = tpl.resaleA;
       c.b.name = tpl.nameB; c.b.init = Math.round(basePrice * tpl.initMultB + tpl.initAddB); c.b.unit = tpl.unitB; c.b.annual = tpl.annualB; c.b.resale = tpl.resaleB;
       c.usesPerWeek = tpl.usesPerWeek; c.title = `${c.a.name} vs ${c.b.name}`;
-      state.presetId = null; state.showWelcome = false; saveState(); syncInputs(); render();
+      state.presetId = null; state.showWelcome = false; activeLoadedIndex = null; saveState(); syncInputs(); render();
     }
 
     function handleTextSearch() {
       const query = document.getElementById("searchItemInput").value.trim();
-      const priceVal = Number(document.getElementById("searchPriceInput").value);
+      const priceRaw = document.getElementById("searchPriceInput").value;
       let cat = document.getElementById("catSelect").value;
       if (cat === "generic" && query) {
         const inferred = detectCategoryFromText(query);
         if (inferred !== "generic") { cat = inferred; document.getElementById("catSelect").value = inferred; }
       }
-      const price = priceVal > 0 ? priceVal : (Number(document.getElementById("initA").value) || 49);
+      const price = priceRaw !== "" ? Math.max(0, Number(priceRaw) || 0) : (Number(document.getElementById("initA").value) || 49);
       proposeAlternative(price, cat, query || "Article recherché");
     }
 
@@ -317,7 +283,7 @@
 
     async function handlePhotoUpload(file) {
       if (!file) return;
-      state.showWelcome = false;
+      state.showWelcome = false; activeLoadedIndex = null;
       const preview = document.getElementById("scanPreview"), status = document.getElementById("scanStatus"), catSelect = document.getElementById("catSelect");
       preview.classList.add("visible");
       document.getElementById("thumbImg").src = URL.createObjectURL(file);
@@ -336,7 +302,7 @@
           status.textContent = `"${c.a.name}" (${fmtEur(c.a.init)}) comparé à "${c.b.name}" (${fmtEur(c.b.init)}).`;
           return;
         } catch (_) {
-          status.textContent = "Analyse hors-ligne / locale...";
+          status.textContent = "Analyse locale de repli...";
         }
       }
 
@@ -361,16 +327,35 @@
         const displayTitle = item.title || `${item.a.name} vs ${item.b.name}`;
         const row = document.createElement("div");
         row.className = "saved-item";
-        row.innerHTML = `<div><strong>${displayTitle}</strong><div class="saved-meta">${item.a.name} (${fmtEur(item.a.init)}) vs ${item.b.name} (${fmtEur(item.b.init)}) · ${item.years} ans · ${item.usesPerWeek}/sem · ${item.savedAt || ""}</div></div><div class="saved-actions"><button class="btn-ghost" data-load="${idx}" type="button">Charger</button><button class="btn-danger" data-del="${idx}" type="button">Suppr.</button></div>`;
+        row.innerHTML = `<div><strong>${displayTitle}</strong><div class="saved-meta">${item.a.name} (${fmtEur(item.a.init)}) vs ${item.b.name} (${fmtEur(item.b.init)}) · ${item.years} ans · ${item.usesPerWeek}/sem · ${item.savedAt || ""}</div></div><div class="saved-actions"><button class="btn-ghost" data-load="${idx}" type="button">Charger</button><button class="btn-ghost" data-upd="${idx}" type="button">Mettre à jour</button><button class="btn-danger" data-del="${idx}" type="button">Suppr.</button></div>`;
         list.appendChild(row);
       });
-      list.querySelectorAll("[data-load]").forEach((btn) => btn.onclick = () => { const sim = state.savedSims[Number(btn.dataset.load)]; if (!sim) return; state.current = clone(sim); state.presetId = null; state.showWelcome = false; saveState(); syncInputs(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
-      list.querySelectorAll("[data-del]").forEach((btn) => btn.onclick = () => { state.savedSims.splice(Number(btn.dataset.del), 1); saveState(); renderSavedSims(); });
+      list.querySelectorAll("[data-load]").forEach((btn) => btn.onclick = () => {
+        const idx = Number(btn.dataset.load);
+        const sim = state.savedSims[idx];
+        if (!sim) return;
+        state.current = clone(sim); state.presetId = null; state.showWelcome = false; activeLoadedIndex = idx;
+        saveState(); syncInputs(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      list.querySelectorAll("[data-upd]").forEach((btn) => btn.onclick = () => {
+        const idx = Number(btn.dataset.upd);
+        const snap = clone(state.current);
+        snap.title = (snap.title || "").trim() || `${snap.a.name} vs ${snap.b.name}`;
+        snap.savedAt = new Date().toLocaleDateString("fr-FR");
+        state.savedSims[idx] = snap;
+        saveState(); renderSavedSims(); alert(`Comparatif « ${snap.title} » mis à jour !`);
+      });
+      list.querySelectorAll("[data-del]").forEach((btn) => btn.onclick = () => {
+        const idx = Number(btn.dataset.del);
+        state.savedSims.splice(idx, 1);
+        if (activeLoadedIndex === idx) activeLoadedIndex = null;
+        saveState(); renderSavedSims();
+      });
     }
 
     function renderPresets() {
       const bar = document.getElementById("presetsBar"); bar.innerHTML = "";
-      PRESETS.forEach((p) => { const btn = document.createElement("button"); btn.className = "preset-chip" + (state.presetId === p.id ? " active" : ""); btn.textContent = p.label; btn.onclick = () => { state.presetId = p.id; state.current = clone(p); state.showWelcome = false; saveState(); syncInputs(); render(); }; bar.appendChild(btn); });
+      PRESETS.forEach((p) => { const btn = document.createElement("button"); btn.className = "preset-chip" + (state.presetId === p.id ? " active" : ""); btn.textContent = p.label; btn.onclick = () => { state.presetId = p.id; state.current = clone(p); state.showWelcome = false; activeLoadedIndex = null; saveState(); syncInputs(); render(); }; bar.appendChild(btn); });
     }
 
     function syncInputs() {
@@ -391,12 +376,42 @@
       document.getElementById("focusSearchBtn").onclick = () => { state.showWelcome = false; saveState(); render(); document.getElementById("searchItemInput").focus(); };
       document.getElementById("searchGoBtn").onclick = handleTextSearch;
       document.getElementById("searchItemInput").addEventListener("keydown", (e) => { if (e.key === "Enter") handleTextSearch(); });
+      document.querySelectorAll(".quick-pill").forEach((pill) => {
+        pill.onclick = () => {
+          document.getElementById("searchItemInput").value = pill.dataset.q;
+          document.getElementById("searchPriceInput").value = pill.dataset.p;
+          document.getElementById("catSelect").value = pill.dataset.c;
+          proposeAlternative(Number(pill.dataset.p), pill.dataset.c, pill.dataset.q);
+        };
+      });
+      document.getElementById("swapBtn").onclick = () => {
+        const tmp = clone(state.current.a);
+        state.current.a = clone(state.current.b);
+        state.current.b = tmp;
+        saveState(); syncInputs(); render();
+      };
       document.getElementById("photoInput").addEventListener("change", (e) => handlePhotoUpload(e.target.files?.[0]));
       document.getElementById("saveSimBtn").onclick = () => { const snap = clone(state.current); snap.title = (snap.title || "").trim() || `${snap.a.name} vs ${snap.b.name}`; snap.savedAt = new Date().toLocaleDateString("fr-FR"); state.savedSims.unshift(snap); state.savedSims = state.savedSims.slice(0, 50); saveState(); renderSavedSims(); alert(`Comparatif « ${snap.title} » enregistré !`); };
       document.getElementById("exportJsonBtn").onclick = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(state.savedSims, null, 2)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = "coutreel-comparatifs.json"; a.click(); URL.revokeObjectURL(url); };
       document.getElementById("importJsonInput").addEventListener("change", async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported)) { alert("Fichier JSON invalide."); return; } const valid = imported.filter((s) => s && s.a && s.b); if (!valid.length) { alert("Aucun comparatif valide."); return; } state.savedSims = [...valid, ...state.savedSims].slice(0, 50); saveState(); renderSavedSims(); alert(`${valid.length} comparatif(s) importé(s) !`); } catch (_) { alert("Impossible de lire ce fichier JSON."); } finally { e.target.value = ""; } });
       document.getElementById("resetBtn").onclick = () => { state.current = clone(PRESETS.find((p) => p.id === state.presetId) || PRESETS[0]); saveState(); syncInputs(); render(); };
       document.getElementById("shareBtn").onclick = async () => { const text = `${state.current.title ? `[${state.current.title}] ` : ""}${document.getElementById("verdictTitle").textContent} — ${document.getElementById("verdictSub").textContent}`; if (navigator.share) { try { await navigator.share({ title: "CoûtRéel", text }); return; } catch (_) {} } navigator.clipboard?.writeText(text); alert("Résumé copié !"); };
+
+      const canvas = document.getElementById("chartCanvas");
+      const updateHover = (clientX) => {
+        const rect = canvas.getBoundingClientRect();
+        const padLeft = 58, padRight = 18;
+        const plotW = Math.max(1, rect.width - padLeft - padRight);
+        const ratio = Math.min(1, Math.max(0, (clientX - rect.left - padLeft) / plotW));
+        const months = state.current.years * 12;
+        const m = Math.round(ratio * months);
+        const va = costAtMonth(state.current.a, m, state.current.usesPerWeek);
+        const vb = costAtMonth(state.current.b, m, state.current.usesPerWeek);
+        document.getElementById("hoverReadout").textContent =
+          `À ${m} mois (${(m / 12).toFixed(1)} ans) — ${state.current.a.name} : ${fmtEur(va)} · ${state.current.b.name} : ${fmtEur(vb)}`;
+      };
+      canvas.addEventListener("mousemove", (e) => updateHover(e.clientX));
+      canvas.addEventListener("touchmove", (e) => { if (e.touches?.[0]) updateHover(e.touches[0].clientX); }, { passive: true });
     }
 
     function drawChart(c) {
