@@ -11,8 +11,8 @@ export default {
     }
 
     const url = new URL(request.url);
+    const modelName = "gemini-3.8-flash";
 
-    // Route de test rapide pour vérifier la clé et Gemini sans photo
     if (url.pathname === "/test-ia") {
       try {
         const key = (env.GEMINI_API_KEY || "").trim();
@@ -23,7 +23,7 @@ export default {
           });
         }
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(key)}`;
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -36,7 +36,7 @@ export default {
         return new Response(JSON.stringify({
           ok: res.ok,
           status: res.status,
-          keyPrefix: key.slice(0, 6),
+          model: modelName,
           geminiResponse: textBody.slice(0, 600)
         }), {
           status: 200,
@@ -67,8 +67,16 @@ export default {
           ? imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
           : null;
 
-        const prompt = `Tu es un expert en calcul de coût réel (TCO) pour un particulier.
-Réponds UNIQUEMENT avec un objet JSON valide (sans markdown) :
+        const prompt = `Tu es un expert en consommation domestique et calcul de coût réel (TCO) pour un particulier à domicile.
+Analyse la demande (photo et/ou texte d'article).
+Règles :
+1. Estime le prix moyen neuf grand public en euros (initA) pour un usage à domicile (pas de matériel industriel ou professionnel sauf si explicitement demandé).
+2. Si un prix est visible sur la photo ou déjà connu, priorise-le pour initA.
+3. Estime un coût moyen par utilisation réaliste à domicile (unitA : consommables, électricité, recharge, produit d'entretien, etc.), les frais fixes annuels (annualA) et la valeur de revente estimée en fin de période (resaleA).
+4. Propose une alternative pertinente pour un foyer (Option B : plus durable, plus économique à l'usage, ou à meilleur rapport coût/durée) avec ses propres estimations (initB, unitB, annualB, resaleB).
+5. Adapte usesPerWeek et years (entre 1 et 10) à l'usage réel d'un particulier à la maison.
+
+Réponds UNIQUEMENT avec un objet JSON valide (sans markdown, sans texte autour) :
 {
   "titre": "Nom court du comparatif",
   "nomA": "Article identifié",
@@ -98,7 +106,7 @@ Réponds UNIQUEMENT avec un objet JSON valide (sans markdown) :
           });
         }
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(key)}`;
         const apiRes = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
