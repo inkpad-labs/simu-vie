@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="description" content="Calculez le coût réel d'un achat ou d'un abonnement sur 1 à 10 ans et trouvez le point de bascule." />
+  <meta name="theme-color" content="#0b1120" />
+  <meta name="description" content="Photographiez un article et son prix en magasin, comparez une alternative avec IA ou OCR, et sauvegardez vos comparatifs." />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <title>CoûtRéel — Simulateur TCO</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --bg: #0b1120;
@@ -19,6 +20,7 @@
       --accent-a: #38bdf8;
       --accent-b: #f97316;
       --good: #22c55e;
+      --danger: #ef4444;
       --radius: 16px;
     }
 
@@ -30,21 +32,21 @@
       background: var(--bg);
       color: var(--text);
       line-height: 1.45;
-      padding-bottom: 48px;
+      padding-bottom: 64px;
     }
 
     header {
       position: sticky;
       top: 0;
       z-index: 10;
-      background: rgba(11, 17, 32, 0.9);
+      background: rgba(11, 17, 32, 0.92);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
       padding: 14px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
     }
 
     .brand {
@@ -62,26 +64,125 @@
       background: linear-gradient(135deg, var(--accent-a), var(--good));
     }
 
-    .install-btn {
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
       background: var(--accent-a);
       color: #061220;
       border: none;
       border-radius: 999px;
-      padding: 7px 14px;
+      padding: 8px 14px;
       font-weight: 700;
-      font-size: 0.82rem;
+      font-size: 0.84rem;
       cursor: pointer;
-      display: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .install-btn.visible { display: inline-block; }
+    .btn-good {
+      background: var(--good);
+      color: #052e16;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-weight: 700;
+      font-size: 0.84rem;
+      cursor: pointer;
+    }
+
+    .btn-ghost {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      border-radius: 8px;
+      padding: 5px 9px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
 
     main {
       max-width: 960px;
       margin: 0 auto;
-      padding: 18px;
+      padding: 16px;
       display: grid;
-      gap: 18px;
+      gap: 16px;
+    }
+
+    .scan-box {
+      background: var(--surface);
+      border: 1px dashed rgba(56, 189, 248, 0.55);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .scan-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .scan-preview {
+      display: none;
+      gap: 12px;
+      align-items: center;
+      background: #090e1a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .scan-preview.visible { display: flex; }
+
+    .scan-preview img {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .scan-status {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    details.ai-config {
+      background: #090e1a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+    }
+
+    details.ai-config summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--accent-a);
     }
 
     .presets {
@@ -104,7 +205,6 @@
       font-weight: 600;
       white-space: nowrap;
       cursor: pointer;
-      transition: 0.15s ease;
     }
 
     .preset-chip.active {
@@ -124,14 +224,14 @@
     }
 
     .banner-title {
-      font-size: 1.1rem;
+      font-size: 1.08rem;
       font-weight: 700;
       color: #e0f2fe;
     }
 
     .banner-sub {
       color: var(--muted);
-      font-size: 0.92rem;
+      font-size: 0.9rem;
     }
 
     .kpis {
@@ -183,6 +283,7 @@
       justify-content: space-between;
       margin-bottom: 12px;
       gap: 8px;
+      flex-wrap: wrap;
     }
 
     .card-title {
@@ -193,7 +294,7 @@
 
     canvas {
       width: 100%;
-      height: 290px;
+      height: 270px;
       display: block;
       border-radius: 12px;
       background: #090e1a;
@@ -226,9 +327,7 @@
       gap: 16px;
     }
 
-    .field {
-      margin-bottom: 12px;
-    }
+    .field { margin-bottom: 12px; }
 
     .field-top {
       display: flex;
@@ -237,10 +336,7 @@
       margin-bottom: 4px;
     }
 
-    .field-val {
-      font-weight: 700;
-      color: var(--text);
-    }
+    .field-val { font-weight: 700; }
 
     input[type="range"] {
       width: 100%;
@@ -248,7 +344,7 @@
       cursor: pointer;
     }
 
-    input[type="number"], input[type="text"] {
+    input[type="number"], input[type="text"], input[type="url"], select {
       width: 100%;
       background: var(--surface-2);
       border: 1px solid var(--border);
@@ -264,15 +360,31 @@
       gap: 10px;
     }
 
-    .btn-ghost {
-      background: var(--surface-2);
+    .saved-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .saved-item {
+      background: #090e1a;
       border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 8px 12px;
-      font-size: 0.84rem;
-      font-weight: 600;
-      cursor: pointer;
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .saved-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .saved-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -282,10 +394,56 @@
       <span class="brand-dot"></span>
       <span>CoûtRéel</span>
     </div>
-    <button id="installBtn" class="install-btn">Installer l'appli</button>
+    <div class="header-actions">
+      <button id="saveSimBtn" class="btn-good" type="button">Enregistrer</button>
+      <button id="shareBtn" class="btn-ghost" type="button">Partager</button>
+    </div>
   </header>
 
   <main>
+    <section class="scan-box">
+      <div class="scan-top">
+        <div>
+          <strong style="font-size:0.95rem;">📷 Scanner un article en rayon</strong>
+          <div class="scan-status">Photo de l'objet/prix → analyse IA (ou OCR local) + proposition d'alternative</div>
+        </div>
+        <label class="btn-primary" for="photoInput">
+          <span>Prendre / choisir photo</span>
+        </label>
+        <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" />
+      </div>
+
+      <div id="scanPreview" class="scan-preview">
+        <img id="thumbImg" alt="Aperçu" />
+        <div style="flex:1;display:grid;gap:8px;">
+          <div id="scanStatus" class="scan-status">Analyse en cours...</div>
+          <div class="row-2">
+            <select id="catSelect">
+              <option value="generic">Catégorie : Général</option>
+              <option value="coffee">Café / Boissons</option>
+              <option value="printer">Impression / Bureau</option>
+              <option value="mobility">Mobilité / Trajet</option>
+              <option value="tool">Outillage / Maison</option>
+            </select>
+            <button id="applyAltBtn" class="btn-ghost" type="button">Proposer alternative</button>
+          </div>
+        </div>
+      </div>
+
+      <details class="ai-config">
+        <summary>⚙️ Connexion IA Vision (optionnel)</summary>
+        <div style="margin-top:8px;display:grid;gap:8px;">
+          <label style="color:var(--muted);font-size:0.8rem;">
+            URL de ton endpoint proxy IA (ex. Cloudflare Worker) :
+          </label>
+          <input id="aiEndpointInput" type="url" placeholder="https://mon-worker.workers.dev/analyze" />
+          <div class="scan-status">
+            Sans URL renseignée, l'app utilise l'OCR local et les modèles intégrés sans envoyer d'image.
+          </div>
+        </div>
+      </details>
+    </section>
+
     <div id="presetsBar" class="presets"></div>
 
     <section class="banner">
@@ -314,7 +472,7 @@
     <section class="card">
       <div class="card-header">
         <h2 class="card-title">Coût cumulé dans le temps</h2>
-        <button id="resetBtn" class="btn-ghost">Réinitialiser le modèle</button>
+        <button id="resetBtn" class="btn-ghost" type="button">Réinitialiser</button>
       </div>
       <canvas id="chartCanvas"></canvas>
       <div class="legend">
@@ -328,7 +486,7 @@
       <div class="field">
         <div class="field-top">
           <span>Utilisations par semaine</span>
-          <span class="field-val" id="outUsesWeek">21</span>
+          <span class="field-val" id="outUsesWeek">21 / sem</span>
         </div>
         <input id="inUsesWeek" type="range" min="1" max="70" step="1" />
       </div>
@@ -343,7 +501,7 @@
 
     <section class="grid-2">
       <div class="card">
-        <h2 class="card-title col-a" style="margin-bottom: 12px;">Option A</h2>
+        <h2 class="card-title col-a" style="margin-bottom: 12px;">Option A (Article scanné / 1er choix)</h2>
         <div class="field">
           <label class="field-top"><span>Nom</span></label>
           <input id="nameA" type="text" />
@@ -351,7 +509,7 @@
         <div class="row-2">
           <div class="field">
             <label class="field-top"><span>Achat initial (€)</span></label>
-            <input id="initA" type="number" min="0" step="1" />
+            <input id="initA" type="number" min="0" step="0.5" />
           </div>
           <div class="field">
             <label class="field-top"><span>Coût / usage (€)</span></label>
@@ -371,7 +529,7 @@
       </div>
 
       <div class="card">
-        <h2 class="card-title col-b" style="margin-bottom: 12px;">Option B</h2>
+        <h2 class="card-title col-b" style="margin-bottom: 12px;">Option B (Alternative proposée)</h2>
         <div class="field">
           <label class="field-top"><span>Nom</span></label>
           <input id="nameB" type="text" />
@@ -379,7 +537,7 @@
         <div class="row-2">
           <div class="field">
             <label class="field-top"><span>Achat initial (€)</span></label>
-            <input id="initB" type="number" min="0" step="1" />
+            <input id="initB" type="number" min="0" step="0.5" />
           </div>
           <div class="field">
             <label class="field-top"><span>Coût / usage (€)</span></label>
@@ -397,6 +555,18 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">Comparatifs enregistrés</h2>
+        <div class="header-actions">
+          <label class="btn-ghost" for="importJsonInput" style="cursor:pointer;">Importer JSON</label>
+          <input id="importJsonInput" type="file" accept="application/json,.json" style="display:none;" />
+          <button id="exportJsonBtn" class="btn-ghost" type="button">Exporter JSON</button>
+        </div>
+      </div>
+      <div id="savedList" class="saved-list"></div>
     </section>
   </main>
 
@@ -428,7 +598,40 @@
       }
     ];
 
-    const STORAGE_KEY = "coutreel_state_v1";
+    const ALT_TEMPLATES = {
+      coffee: {
+        nameA: "Option à consommables chers",
+        unitA: 0.45, annualA: 15, resaleA: 0,
+        nameB: "Alternative durable / grains",
+        initMultB: 4.5, initAddB: 80, unitB: 0.14, annualB: 30, resaleB: 40, usesPerWeek: 14
+      },
+      printer: {
+        nameA: "Modèle entrée de gamme (encre)",
+        unitA: 0.18, annualA: 0, resaleA: 0,
+        nameB: "Alternative plus durable / toner",
+        initMultB: 3.2, initAddB: 60, unitB: 0.04, annualB: 10, resaleB: 25, usesPerWeek: 10
+      },
+      mobility: {
+        nameA: "Option usage / carburant élevé",
+        unitA: 2.5, annualA: 80, resaleA: 0,
+        nameB: "Alternative plus sobre / durable",
+        initMultB: 1.8, initAddB: 250, unitB: 0.7, annualB: 100, resaleB: 200, usesPerWeek: 7
+      },
+      tool: {
+        nameA: "Équipement neuf standard",
+        unitA: 0.5, annualA: 20, resaleA: 15,
+        nameB: "Alternative occasion / pro durable",
+        initMultB: 1.4, initAddB: 40, unitB: 0.2, annualB: 25, resaleB: 50, usesPerWeek: 4
+      },
+      generic: {
+        nameA: "Article scanné",
+        unitA: 0.5, annualA: 10, resaleA: 0,
+        nameB: "Alternative à coût d'usage réduit",
+        initMultB: 2.2, initAddB: 50, unitB: 0.15, annualB: 20, resaleB: 25, usesPerWeek: 7
+      }
+    };
+
+    const STORAGE_KEY = "coutreel_state_v4";
     let state = loadState();
 
     function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
@@ -436,16 +639,27 @@
     function loadState() {
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (saved && saved.current) return saved;
+        if (saved && saved.current) {
+          return {
+            presetId: saved.presetId ?? PRESETS[0].id,
+            current: saved.current,
+            savedSims: Array.isArray(saved.savedSims) ? saved.savedSims : [],
+            aiEndpoint: saved.aiEndpoint || ""
+          };
+        }
       } catch (_) {}
-      return { presetId: PRESETS[0].id, current: clone(PRESETS[0]) };
+      return {
+        presetId: PRESETS[0].id,
+        current: clone(PRESETS[0]),
+        savedSims: [],
+        aiEndpoint: ""
+      };
     }
 
     function saveState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    // Coût cumulé au mois m (0 -> years * 12)
     function costAtMonth(opt, m, usesPerWeek) {
       const yearsElapsed = m / 12;
       const totalUses = usesPerWeek * 52 * yearsElapsed;
@@ -460,13 +674,10 @@
       const maxM = years * 12;
       const diff0 = costAtMonth(a, 0, usesPerWeek) - costAtMonth(b, 0, usesPerWeek);
       if (Math.abs(diff0) < 0.01) return null;
-
       for (let m = 1; m <= maxM; m++) {
         const dPrev = costAtMonth(a, m - 1, usesPerWeek) - costAtMonth(b, m - 1, usesPerWeek);
         const dCurr = costAtMonth(a, m, usesPerWeek) - costAtMonth(b, m, usesPerWeek);
-        if ((dPrev <= 0 && dCurr >= 0) || (dPrev >= 0 && dCurr <= 0)) {
-          return m;
-        }
+        if ((dPrev <= 0 && dCurr >= 0) || (dPrev >= 0 && dCurr <= 0)) return m;
       }
       return null;
     }
@@ -477,216 +688,15 @@
       maximumFractionDigits: n % 1 === 0 ? 0 : 2
     }).format(n);
 
-    function renderPresets() {
-      const bar = document.getElementById("presetsBar");
-      bar.innerHTML = "";
-      PRESETS.forEach((p) => {
-        const btn = document.createElement("button");
-        btn.className = "preset-chip" + (state.presetId === p.id ? " active" : "");
-        btn.textContent = p.label;
-        btn.onclick = () => {
-          state.presetId = p.id;
-          state.current = clone(p);
-          saveState();
-          syncInputs();
-          render();
-        };
-        bar.appendChild(btn);
-      });
+    function extractPriceFromText(text) {
+      if (!text) return null;
+      const matches = [...text.matchAll(/(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|eur|euros)?/gi)];
+      const candidates = matches
+        .map((m) => parseFloat(m[1].replace(",", ".")))
+        .filter((n) => !Number.isNaN(n) && n > 0.5 && n < 50000);
+      return candidates.length ? candidates[0] : null;
     }
 
-    function syncInputs() {
-      const c = state.current;
-      document.getElementById("inUsesWeek").value = c.usesPerWeek;
-      document.getElementById("inYears").value = c.years;
-
-      document.getElementById("nameA").value = c.a.name;
-      document.getElementById("initA").value = c.a.init;
-      document.getElementById("unitA").value = c.a.unit;
-      document.getElementById("annualA").value = c.a.annual;
-      document.getElementById("resaleA").value = c.a.resale;
-
-      document.getElementById("nameB").value = c.b.name;
-      document.getElementById("initB").value = c.b.init;
-      document.getElementById("unitB").value = c.b.unit;
-      document.getElementById("annualB").value = c.b.annual;
-      document.getElementById("resaleB").value = c.b.resale;
-    }
-
-    function bindInputs() {
-      const c = state.current;
-      const map = [
-        ["inUsesWeek", (v) => (c.usesPerWeek = Math.max(1, Number(v) || 1))],
-        ["inYears", (v) => (c.years = Math.max(1, Number(v) || 1))],
-        ["nameA", (v) => (c.a.name = v || "Option A")],
-        ["initA", (v) => (c.a.init = Math.max(0, Number(v) || 0))],
-        ["unitA", (v) => (c.a.unit = Math.max(0, Number(v) || 0))],
-        ["annualA", (v) => (c.a.annual = Math.max(0, Number(v) || 0))],
-        ["resaleA", (v) => (c.a.resale = Math.max(0, Number(v) || 0))],
-        ["nameB", (v) => (c.b.name = v || "Option B")],
-        ["initB", (v) => (c.b.init = Math.max(0, Number(v) || 0))],
-        ["unitB", (v) => (c.b.unit = Math.max(0, Number(v) || 0))],
-        ["annualB", (v) => (c.b.annual = Math.max(0, Number(v) || 0))],
-        ["resaleB", (v) => (c.b.resale = Math.max(0, Number(v) || 0))]
-      ];
-
-      map.forEach(([id, fn]) => {
-        document.getElementById(id).addEventListener("input", (e) => {
-          fn(e.target.value);
-          saveState();
-          render();
-        });
-      });
-
-      document.getElementById("resetBtn").onclick = () => {
-        const base = PRESETS.find((p) => p.id === state.presetId) || PRESETS[0];
-        state.current = clone(base);
-        saveState();
-        syncInputs();
-        render();
-      };
-    }
-
-    function drawChart(c) {
-      const canvas = document.getElementById("chartCanvas");
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-
-      const ctx = canvas.getContext("2d");
-      ctx.scale(dpr, dpr);
-
-      const w = rect.width;
-      const h = rect.height;
-      const pad = { top: 18, right: 18, bottom: 32, left: 58 };
-      const plotW = w - pad.left - pad.right;
-      const plotH = h - pad.top - pad.bottom;
-
-      const months = c.years * 12;
-      const ptsA = [];
-      const ptsB = [];
-      let maxVal = 10;
-
-      for (let m = 0; m <= months; m++) {
-        const va = costAtMonth(c.a, m, c.usesPerWeek);
-        const vb = costAtMonth(c.b, m, c.usesPerWeek);
-        ptsA.push(va);
-        ptsB.push(vb);
-        maxVal = Math.max(maxVal, va, vb);
-      }
-
-      maxVal = Math.ceil(maxVal * 1.1);
-
-      ctx.clearRect(0, 0, w, h);
-
-      // Grille horizontale
-      ctx.strokeStyle = "#1e293b";
-      ctx.lineWidth = 1;
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "11px sans-serif";
-      const rows = 4;
-      for (let i = 0; i <= rows; i++) {
-        const ratio = i / rows;
-        const y = pad.top + plotH * (1 - ratio);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(w - pad.right, y);
-        ctx.stroke();
-
-        const val = Math.round(maxVal * ratio);
-        ctx.fillText(val + " €", 6, y + 4);
-      }
-
-      // Labels années en X
-      for (let yr = 0; yr <= c.years; yr++) {
-        const x = pad.left + (yr / c.years) * plotW;
-        ctx.fillText(yr + "a", x - 6, h - 10);
-      }
-
-      function plotLine(pts, color) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.8;
-        ctx.beginPath();
-        pts.forEach((val, idx) => {
-          const x = pad.left + (idx / months) * plotW;
-          const y = pad.top + plotH * (1 - val / maxVal);
-          if (idx === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-      }
-
-      plotLine(ptsA, "#38bdf8");
-      plotLine(ptsB, "#f97316");
-    }
-
-    function render() {
-      const c = state.current;
-      document.getElementById("outUsesWeek").textContent = c.usesPerWeek + " / sem";
-      document.getElementById("outYears").textContent = c.years + (c.years > 1 ? " ans" : " an");
-
-      document.getElementById("labelTotalA").textContent = c.a.name;
-      document.getElementById("labelTotalB").textContent = c.b.name;
-      document.getElementById("legA").textContent = c.a.name;
-      document.getElementById("legB").textContent = c.b.name;
-
-      const totalA = netCostEnd(c.a, c.years, c.usesPerWeek);
-      const totalB = netCostEnd(c.b, c.years, c.usesPerWeek);
-      const usesTotal = Math.max(1, c.usesPerWeek * 52 * c.years);
-
-      document.getElementById("valTotalA").textContent = fmtEur(totalA);
-      document.getElementById("valTotalB").textContent = fmtEur(totalB);
-      document.getElementById("cpuA").textContent = fmtEur(totalA / usesTotal) + " / utilisation";
-      document.getElementById("cpuB").textContent = fmtEur(totalB / usesTotal) + " / utilisation";
-
-      const diff = Math.abs(totalA - totalB);
-      const winner = totalA <= totalB ? c.a.name : c.b.name;
-      const loser = totalA <= totalB ? c.b.name : c.a.name;
-
-      document.getElementById("valSavings").textContent = fmtEur(diff);
-
-      const beMonth = findBreakevenMonth(c.a, c.b, c.years, c.usesPerWeek);
-      document.getElementById("valBreakeven").textContent = beMonth
-        ? `Point de bascule : ${beMonth} mois`
-        : "Point de bascule : aucun sur la période";
-
-      document.getElementById("verdictTitle").textContent =
-        `${winner} est plus économique de ${fmtEur(diff)} sur ${c.years} ans`;
-      document.getElementById("verdictSub").textContent = beMonth
-        ? `L'écart s'inverse au bout de ${beMonth} mois d'utilisation (${c.usesPerWeek} fois/semaine), revente incluse.`
-        : `Sur ${c.years} ans à ${c.usesPerWeek} utilisations/semaine, ${winner} reste devant ${loser}.`;
-
-      renderPresets();
-      drawChart(c);
-    }
-
-    // Gestion installation PWA
-    let deferredPrompt;
-    const installBtn = document.getElementById("installBtn");
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      installBtn.classList.add("visible");
-    });
-
-    installBtn.addEventListener("click", async () => {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      installBtn.classList.remove("visible");
-    });
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    }
-
-    window.addEventListener("resize", () => drawChart(state.current));
-
-    syncInputs();
-    bindInputs();
-    render();
-  </script>
-</body>
-</html>
+    function detectCategoryFromText(text) {
+      const t = (text || "").toLowerCase();
+      if (/caf[eé]|capsule|dosette|grain|expresso/.test(t))
