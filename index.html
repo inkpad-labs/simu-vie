@@ -1,36 +1,94 @@
-const CACHE_NAME = "coutreel-cache-v9";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png"
-];
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
-  );
-});
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1120" />
+  <meta name="description" content="Calculez le cout reel d'un achat sur la duree par photo ou par recherche d'article." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <title>CoutReel - Simulateur TCO</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --surface: #111827;
+      --surface-2: #1e293b;
+      --border: #283548;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent-a: #38bdf8;
+      --accent-b: #f97316;
+      --good: #22c55e;
+      --danger: #ef4444;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; padding-bottom: 68px; }
+    header { position: sticky; top: 0; z-index: 10; background: rgba(11, 17, 32, 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; cursor: pointer; }
+    .brand-dot { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-a), var(--good)); }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn-primary { background: var(--accent-a); color: #061220; border: none; border-radius: 999px; padding: 9px 15px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-good { background: var(--good); color: #052e16; border: none; border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 0.84rem; cursor: pointer; }
+    .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 12px; font-size: 0.84rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-danger { background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; border-radius: 8px; padding: 5px 9px; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    main { max-width: 960px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+    .welcome { background: linear-gradient(145deg, rgba(56, 189, 248, 0.14), rgba(17, 24, 39, 0.96)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: var(--radius); padding: 22px 18px; display: grid; gap: 14px; }
+    .welcome h1 { margin: 0; font-size: 1.4rem; }
+    .welcome p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+    .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .scan-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 12px; }
+    .scan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .search-row { display: grid; grid-template-columns: 1.5fr 0.8fr 1fr auto; gap: 8px; }
+    @media (max-width: 720px) { .search-row { grid-template-columns: 1fr 1fr; } }
+    .quick-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .quick-pill { background: #090e1a; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 5px 11px; font-size: 0.78rem; cursor: pointer; }
+    .quick-pill:hover { border-color: var(--accent-a); color: var(--text); }
+    .scan-preview { display: none; gap: 12px; align-items: center; background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+    .scan-preview.visible { display: flex; }
+    .scan-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+    .scan-status { font-size: 0.85rem; color: var(--muted); }
+    .presets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .presets::-webkit-scrollbar { display: none; }
+    .preset-chip { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 9px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+    .preset-chip.active { background: var(--surface-2); border-color: var(--accent-a); color: var(--accent-a); }
+    .banner { background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(34, 197, 94, 0.12)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
+    .banner-title { font-size: 1.08rem; font-weight: 700; color: #e0f2fe; }
+    .banner-sub { color: var(--muted); font-size: 0.9rem; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .kpi-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-value { font-size: 1.45rem; font-weight: 800; margin-top: 4px; }
+    .kpi-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .positive { color: var(--good); }
+    .col-a { color: var(--accent-a); }
+    .col-b { color: var(--accent-b); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
+    .card-title { font-size: 0.98rem; font-weight: 700; margin: 0; }
+    .chart-wrap { position: relative; }
+    canvas { width: 100%; height: 270px; display: block; border-radius: 12px; background: #090e1a; touch-action: none; }
+    .hover-readout { margin-top: 8px; font-size: 0.83rem; color: var(--muted); min-height: 20px; }
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.84rem; color: var(--muted); margin-top: 8px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 10px; height: 10px; border-radius: 50%; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .field { margin-bottom: 12px; }
+    .field-top { display: flex; justify-content: space-between; font-size: 0.86rem; margin-bottom: 4px; }
+    .field-val { font-weight: 700; }
+    input[type="range"] { width: 100%; accent-color: var(--accent-a); cursor: pointer; }
+    input[type="number"], input[type="text"], select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 0.9rem; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .saved-list { display: grid; gap: 8px; }
+    .saved-item { background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .saved-meta { font-size: 0.8rem; color: var(--muted); }
+    .saved-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+  </style>
+</head>
 <body>
   <header>
-    <div class="brand" id="homeLogo"><span class="brand-dot"></span><span>CoûtRéel</span></div>
+    <div class="brand" id="homeLogo"><span class="brand-dot"></span><span>CoutReel</span></div>
     <div class="header-actions">
       <button id="showWelcomeBtn" class="btn-ghost" type="button">Accueil</button>
       <button id="saveSimBtn" class="btn-good" type="button">Enregistrer</button>
@@ -40,33 +98,33 @@ self.addEventListener("fetch", (event) => {
 
   <main>
     <section id="welcomeScreen" class="welcome">
-      <h1>Comparez le vrai coût d'un achat sur la durée</h1>
-      <p>Évaluez le coût total (achat initial, coût par usage, frais annuels et revente) en recherchant un article ou en prenant une photo en rayon.</p>
+      <h1>Comparez le vrai cout d'un achat sur la duree</h1>
+      <p>Evaluez le cout total (achat initial, cout par usage, frais annuels et revente) en recherchant un article ou en prenant une photo en rayon.</p>
       <div class="welcome-actions">
-        <button id="startSimBtn" class="btn-primary" type="button">Accéder au comparateur</button>
-        <button id="focusSearchBtn" class="btn-ghost" type="button">🔍 Chercher un article</button>
-        <label class="btn-ghost" for="photoInput" style="cursor:pointer;">📷 Scanner par photo</label>
+        <button id="startSimBtn" class="btn-primary" type="button">Acceder au comparateur</button>
+        <button id="focusSearchBtn" class="btn-ghost" type="button">Chercher un article</button>
+        <label class="btn-ghost" for="photoInput" style="cursor:pointer;">Scanner par photo</label>
       </div>
     </section>
 
     <section class="scan-box">
       <div class="scan-top">
         <div>
-          <strong style="font-size:0.95rem;">🔍 Chercher un article ou scanner en rayon</strong>
+          <strong style="font-size:0.95rem;">Chercher un article ou scanner en rayon</strong>
           <div class="scan-status">Recherche texte rapide ou photo de l'article/prix avec proposition d'alternative</div>
         </div>
-        <label class="btn-primary" for="photoInput"><span>📷 Photo</span></label>
+        <label class="btn-primary" for="photoInput"><span>Photo</span></label>
         <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" />
       </div>
 
       <div class="search-row">
-        <input id="searchItemInput" type="text" placeholder="Ex. Capsules café, Imprimante..." />
-        <input id="searchPriceInput" type="number" min="0" step="0.5" placeholder="Prix (€)" />
+        <input id="searchItemInput" type="text" placeholder="Ex. Capsules cafe, Imprimante..." />
+        <input id="searchPriceInput" type="number" min="0" step="0.5" placeholder="Prix (EUR)" />
         <select id="catSelect">
-          <option value="generic">Catégorie : Général</option>
-          <option value="coffee">Café / Boissons</option>
+          <option value="generic">Categorie : General</option>
+          <option value="coffee">Cafe / Boissons</option>
           <option value="printer">Impression / Bureau</option>
-          <option value="mobility">Mobilité / Trajet</option>
+          <option value="mobility">Mobilite / Trajet</option>
           <option value="tool">Outillage / Maison</option>
           <option value="sub">Achat vs Abonnement</option>
         </select>
@@ -74,15 +132,15 @@ self.addEventListener("fetch", (event) => {
       </div>
 
       <div class="quick-pills" id="quickPills">
-        <button class="quick-pill" type="button" data-q="Capsules café" data-p="69" data-c="coffee">☕ Capsules (69 €)</button>
-        <button class="quick-pill" type="button" data-q="Imprimante jet d'encre" data-p="65" data-c="printer">🖨️ Jet d'encre (65 €)</button>
-        <button class="quick-pill" type="button" data-q="Trajet quotidien" data-p="0" data-c="mobility">🚗 Trajet (0 € initial)</button>
-        <button class="quick-pill" type="button" data-q="Outil électroportatif" data-p="89" data-c="tool">🔧 Outil (89 €)</button>
-        <button class="quick-pill" type="button" data-q="Service par abonnement" data-p="0" data-c="sub">💳 Abonnement</button>
+        <button class="quick-pill" type="button" data-q="Capsules cafe" data-p="69" data-c="coffee">Capsules (69 \u20ac)</button>
+        <button class="quick-pill" type="button" data-q="Imprimante jet d'encre" data-p="65" data-c="printer">Jet d'encre (65 \u20ac)</button>
+        <button class="quick-pill" type="button" data-q="Trajet quotidien" data-p="0" data-c="mobility">Trajet (0 \u20ac initial)</button>
+        <button class="quick-pill" type="button" data-q="Outil electroportatif" data-p="89" data-c="tool">Outil (89 \u20ac)</button>
+        <button class="quick-pill" type="button" data-q="Service par abonnement" data-p="0" data-c="sub">Abonnement</button>
       </div>
 
       <div id="scanPreview" class="scan-preview">
-        <img id="thumbImg" alt="Aperçu" />
+        <img id="thumbImg" alt="Apercu" />
         <div style="flex:1;display:grid;gap:6px;">
           <div id="scanStatus" class="scan-status">Analyse en cours...</div>
         </div>
@@ -97,17 +155,17 @@ self.addEventListener("fetch", (event) => {
     </section>
 
     <section class="kpis">
-      <div class="kpi"><div class="kpi-label" id="labelTotalA">Option A</div><div class="kpi-value col-a" id="valTotalA">0 €</div><div class="kpi-sub" id="cpuA">0,00 € / utilisation</div></div>
-      <div class="kpi"><div class="kpi-label" id="labelTotalB">Option B</div><div class="kpi-value col-b" id="valTotalB">0 €</div><div class="kpi-sub" id="cpuB">0,00 € / utilisation</div></div>
-      <div class="kpi"><div class="kpi-label">Économie nette</div><div class="kpi-value positive" id="valSavings">0 €</div><div class="kpi-sub" id="valBreakeven">Point de bascule : -</div></div>
+      <div class="kpi"><div class="kpi-label" id="labelTotalA">Option A</div><div class="kpi-value col-a" id="valTotalA">0 \u20ac</div><div class="kpi-sub" id="cpuA">0,00 \u20ac / utilisation</div></div>
+      <div class="kpi"><div class="kpi-label" id="labelTotalB">Option B</div><div class="kpi-value col-b" id="valTotalB">0 \u20ac</div><div class="kpi-sub" id="cpuB">0,00 \u20ac / utilisation</div></div>
+      <div class="kpi"><div class="kpi-label">Economie nette</div><div class="kpi-value positive" id="valSavings">0 \u20ac</div><div class="kpi-sub" id="valBreakeven">Point de bascule : -</div></div>
     </section>
 
     <section class="card">
       <div class="card-header">
-        <h2 class="card-title">Coût cumulé dans le temps</h2>
+        <h2 class="card-title">Cout cumule dans le temps</h2>
         <div class="header-actions">
           <button id="swapBtn" class="btn-ghost" type="button">Inverser A / B</button>
-          <button id="resetBtn" class="btn-ghost" type="button">Réinitialiser</button>
+          <button id="resetBtn" class="btn-ghost" type="button">Reinitialiser</button>
         </div>
       </div>
       <div class="chart-wrap">
@@ -123,11 +181,11 @@ self.addEventListener("fetch", (event) => {
     <section class="card">
       <div class="field">
         <label class="field-top" for="simTitle"><span>Titre de la simulation</span></label>
-        <input id="simTitle" type="text" placeholder="Ex. Cafetière rayon maison ou Trajet quotidien" />
+        <input id="simTitle" type="text" placeholder="Ex. Cafetiere rayon maison ou Trajet quotidien" />
       </div>
-      <h2 class="card-title" style="margin-bottom: 12px;">Fréquence & horizon</h2>
+      <h2 class="card-title" style="margin-bottom: 12px;">Frequence & horizon</h2>
       <div class="field"><div class="field-top"><span>Utilisations par semaine</span><span class="field-val" id="outUsesWeek">21 / sem</span></div><input id="inUsesWeek" type="range" min="1" max="70" step="1" /></div>
-      <div class="field" style="margin-bottom: 0;"><div class="field-top"><span>Horizon de simulation (années)</span><span class="field-val" id="outYears">5 ans</span></div><input id="inYears" type="range" min="1" max="10" step="1" /></div>
+      <div class="field" style="margin-bottom: 0;"><div class="field-top"><span>Horizon de simulation (annees)</span><span class="field-val" id="outYears">5 ans</span></div><input id="inYears" type="range" min="1" max="10" step="1" /></div>
     </section>
 
     <section class="grid-2">
@@ -135,31 +193,31 @@ self.addEventListener("fetch", (event) => {
         <h2 class="card-title col-a" style="margin-bottom: 12px;">Option A (Article choisi)</h2>
         <div class="field"><label class="field-top"><span>Nom</span></label><input id="nameA" type="text" /></div>
         <div class="row-2">
-          <div class="field"><label class="field-top"><span>Achat initial (€)</span></label><input id="initA" type="number" min="0" step="0.5" /></div>
-          <div class="field"><label class="field-top"><span>Coût / usage (€)</span></label><input id="unitA" type="number" min="0" step="0.01" /></div>
+          <div class="field"><label class="field-top"><span>Achat initial (\u20ac)</span></label><input id="initA" type="number" min="0" step="0.5" /></div>
+          <div class="field"><label class="field-top"><span>Cout / usage (\u20ac)</span></label><input id="unitA" type="number" min="0" step="0.01" /></div>
         </div>
         <div class="row-2">
-          <div class="field"><label class="field-top"><span>Fixe / an (€)</span></label><input id="annualA" type="number" min="0" step="1" /></div>
-          <div class="field"><label class="field-top"><span>Revente fin (€)</span></label><input id="resaleA" type="number" min="0" step="1" /></div>
+          <div class="field"><label class="field-top"><span>Fixe / an (\u20ac)</span></label><input id="annualA" type="number" min="0" step="1" /></div>
+          <div class="field"><label class="field-top"><span>Revente fin (\u20ac)</span></label><input id="resaleA" type="number" min="0" step="1" /></div>
         </div>
       </div>
       <div class="card">
-        <h2 class="card-title col-b" style="margin-bottom: 12px;">Option B (Alternative proposée)</h2>
+        <h2 class="card-title col-b" style="margin-bottom: 12px;">Option B (Alternative proposee)</h2>
         <div class="field"><label class="field-top"><span>Nom</span></label><input id="nameB" type="text" /></div>
         <div class="row-2">
-          <div class="field"><label class="field-top"><span>Achat initial (€)</span></label><input id="initB" type="number" min="0" step="0.5" /></div>
-          <div class="field"><label class="field-top"><span>Coût / usage (€)</span></label><input id="unitB" type="number" min="0" step="0.01" /></div>
+          <div class="field"><label class="field-top"><span>Achat initial (\u20ac)</span></label><input id="initB" type="number" min="0" step="0.5" /></div>
+          <div class="field"><label class="field-top"><span>Cout / usage (\u20ac)</span></label><input id="unitB" type="number" min="0" step="0.01" /></div>
         </div>
         <div class="row-2">
-          <div class="field"><label class="field-top"><span>Fixe / an (€)</span></label><input id="annualB" type="number" min="0" step="1" /></div>
-          <div class="field"><label class="field-top"><span>Revente fin (€)</span></label><input id="resaleB" type="number" min="0" step="1" /></div>
+          <div class="field"><label class="field-top"><span>Fixe / an (\u20ac)</span></label><input id="annualB" type="number" min="0" step="1" /></div>
+          <div class="field"><label class="field-top"><span>Revente fin (\u20ac)</span></label><input id="resaleB" type="number" min="0" step="1" /></div>
         </div>
       </div>
     </section>
 
     <section class="card">
       <div class="card-header">
-        <h2 class="card-title">Comparatifs enregistrés</h2>
+        <h2 class="card-title">Comparatifs enregistres</h2>
         <div class="header-actions">
           <label class="btn-ghost" for="importJsonInput" style="cursor:pointer;">Importer JSON</label>
           <input id="importJsonInput" type="file" accept="application/json,.json" style="display:none;" />
@@ -169,25 +227,26 @@ self.addEventListener("fetch", (event) => {
       <div id="savedList" class="saved-list"></div>
     </section>
   </main>
+
   <script>
     const DEFAULT_AI_ENDPOINT = "https://simu-vie.t4tcv52mfj.workers.dev/analyze";
 
     const PRESETS = [
-      { id: "coffee", title: "Café : Capsules vs Grains", label: "☕ Café : Capsules vs Grains", years: 5, usesPerWeek: 21, a: { name: "Capsules", init: 70, unit: 0.45, annual: 15, resale: 0 }, b: { name: "Machine à grains", init: 380, unit: 0.14, annual: 35, resale: 40 } },
-      { id: "printer", title: "Imprimante : Jet d'encre vs Laser", label: "🖨️ Imprimante : Jet d'encre vs Laser", years: 4, usesPerWeek: 12, a: { name: "Jet d'encre", init: 65, unit: 0.18, annual: 0, resale: 0 }, b: { name: "Laser / Toner", init: 240, unit: 0.04, annual: 10, resale: 25 } },
-      { id: "car", title: "Trajet 50 km : Essence vs Élec", label: "🚗 Trajet 50 km : Essence vs Élec", years: 5, usesPerWeek: 5, a: { name: "Essence / usage", init: 0, unit: 6.5, annual: 0, resale: 0 }, b: { name: "Électrique / usage", init: 3500, unit: 1.6, annual: 120, resale: 1200 } }
+      { id: "coffee", title: "Cafe : Capsules vs Grains", label: "Cafe : Capsules vs Grains", years: 5, usesPerWeek: 21, a: { name: "Capsules", init: 70, unit: 0.45, annual: 15, resale: 0 }, b: { name: "Machine a grains", init: 380, unit: 0.14, annual: 35, resale: 40 } },
+      { id: "printer", title: "Imprimante : Jet d'encre vs Laser", label: "Imprimante : Jet d'encre vs Laser", years: 4, usesPerWeek: 12, a: { name: "Jet d'encre", init: 65, unit: 0.18, annual: 0, resale: 0 }, b: { name: "Laser / Toner", init: 240, unit: 0.04, annual: 10, resale: 25 } },
+      { id: "car", title: "Trajet 50 km : Essence vs Elec", label: "Trajet 50 km : Essence vs Elec", years: 5, usesPerWeek: 5, a: { name: "Essence / usage", init: 0, unit: 6.5, annual: 0, resale: 0 }, b: { name: "Electrique / usage", init: 3500, unit: 1.6, annual: 120, resale: 1200 } }
     ];
 
     const ALT_TEMPLATES = {
-      coffee: { nameA: "Option à consommables chers", unitA: 0.45, annualA: 15, resaleA: 0, nameB: "Alternative durable / grains", initMultB: 4.5, initAddB: 80, unitB: 0.14, annualB: 30, resaleB: 40, usesPerWeek: 14 },
-      printer: { nameA: "Modèle entrée de gamme (encre)", unitA: 0.18, annualA: 0, resaleA: 0, nameB: "Alternative plus durable / toner", initMultB: 3.2, initAddB: 60, unitB: 0.04, annualB: 10, resaleB: 25, usesPerWeek: 10 },
-      mobility: { nameA: "Option usage / carburant élevé", unitA: 2.5, annualA: 80, resaleA: 0, nameB: "Alternative plus sobre / durable", initMultB: 1.8, initAddB: 250, unitB: 0.7, annualB: 100, resaleB: 200, usesPerWeek: 7 },
-      tool: { nameA: "Équipement neuf standard", unitA: 0.5, annualA: 20, resaleA: 15, nameB: "Alternative occasion / pro durable", initMultB: 1.4, initAddB: 40, unitB: 0.2, annualB: 25, resaleB: 50, usesPerWeek: 4 },
-      sub: { nameA: "Formule abonnement récurrent", unitA: 0, annualA: 120, resaleA: 0, nameB: "Achat / licence durable", initMultB: 1, initAddB: 180, unitB: 0, annualB: 15, resaleB: 20, usesPerWeek: 7 },
-      generic: { nameA: "Article choisi", unitA: 0.5, annualA: 10, resaleA: 0, nameB: "Alternative à coût d'usage réduit", initMultB: 2.2, initAddB: 50, unitB: 0.15, annualB: 20, resaleB: 25, usesPerWeek: 7 }
+      coffee: { nameA: "Option a consommables chers", unitA: 0.45, annualA: 15, resaleA: 0, nameB: "Alternative durable / grains", initMultB: 4.5, initAddB: 80, unitB: 0.14, annualB: 30, resaleB: 40, usesPerWeek: 14 },
+      printer: { nameA: "Modele entree de gamme (encre)", unitA: 0.18, annualA: 0, resaleA: 0, nameB: "Alternative plus durable / toner", initMultB: 3.2, initAddB: 60, unitB: 0.04, annualB: 10, resaleB: 25, usesPerWeek: 10 },
+      mobility: { nameA: "Option usage / carburant eleve", unitA: 2.5, annualA: 80, resaleA: 0, nameB: "Alternative plus sobre / durable", initMultB: 1.8, initAddB: 250, unitB: 0.7, annualB: 100, resaleB: 200, usesPerWeek: 7 },
+      tool: { nameA: "Equipement neuf standard", unitA: 0.5, annualA: 20, resaleA: 15, nameB: "Alternative occasion / pro durable", initMultB: 1.4, initAddB: 40, unitB: 0.2, annualB: 25, resaleB: 50, usesPerWeek: 4 },
+      sub: { nameA: "Formule abonnement recurrent", unitA: 0, annualA: 120, resaleA: 0, nameB: "Achat / licence durable", initMultB: 1, initAddB: 180, unitB: 0, annualB: 15, resaleB: 20, usesPerWeek: 7 },
+      generic: { nameA: "Article choisi", unitA: 0.5, annualA: 10, resaleA: 0, nameB: "Alternative a cout d'usage reduit", initMultB: 2.2, initAddB: 50, unitB: 0.15, annualB: 20, resaleB: 25, usesPerWeek: 7 }
     };
 
-    const STORAGE_KEY = "coutreel_state_v9";
+    const STORAGE_KEY = "coutreel_state_v10";
     let state = loadState();
     let activeLoadedIndex = null;
 
@@ -227,7 +286,7 @@ self.addEventListener("fetch", (event) => {
 
     function extractPriceFromText(text) {
       if (!text) return null;
-      const matches = [...text.matchAll(/(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|eur|euros)?/gi)];
+      const matches = [...text.matchAll(/(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:\u20ac|eur|euros)?/gi)];
       const vals = matches.map((m) => parseFloat(m[1].replace(",", "."))).filter((n) => !Number.isNaN(n) && n > 0.5 && n < 50000);
       return vals.length ? vals[0] : null;
     }
@@ -261,7 +320,7 @@ self.addEventListener("fetch", (event) => {
         if (inferred !== "generic") { cat = inferred; document.getElementById("catSelect").value = inferred; }
       }
       const price = priceRaw !== "" ? Math.max(0, Number(priceRaw) || 0) : (Number(document.getElementById("initA").value) || 49);
-      proposeAlternative(price, cat, query || "Article recherché");
+      proposeAlternative(price, cat, query || "Article recherche");
     }
 
     async function compressImageToBase64(file, maxWidth = 900, quality = 0.72) {
@@ -293,13 +352,13 @@ self.addEventListener("fetch", (event) => {
         try {
           const ai = await analyzeWithAI(DEFAULT_AI_ENDPOINT, file);
           const c = state.current;
-          c.a.name = ai.nomA || "Article détecté"; c.a.init = Number(ai.initA) || 49; c.a.unit = Number(ai.unitA) || 0.2; c.a.annual = Number(ai.annualA) || 0; c.a.resale = Number(ai.resaleA) || 0;
-          c.b.name = ai.nomB || "Alternative proposée"; c.b.init = Number(ai.initB) || Math.round(c.a.init * 2); c.b.unit = Number(ai.unitB) || 0.1; c.b.annual = Number(ai.annualB) || 0; c.b.resale = Number(ai.resaleB) || 0;
+          c.a.name = ai.nomA || "Article detecte"; c.a.init = Number(ai.initA) || 49; c.a.unit = Number(ai.unitA) || 0.2; c.a.annual = Number(ai.annualA) || 0; c.a.resale = Number(ai.resaleA) || 0;
+          c.b.name = ai.nomB || "Alternative proposee"; c.b.init = Number(ai.initB) || Math.round(c.a.init * 2); c.b.unit = Number(ai.unitB) || 0.1; c.b.annual = Number(ai.annualB) || 0; c.b.resale = Number(ai.resaleB) || 0;
           if (ai.usesPerWeek) c.usesPerWeek = Math.max(1, Number(ai.usesPerWeek));
           if (ai.years) c.years = Math.min(10, Math.max(1, Number(ai.years)));
           c.title = ai.titre || `${c.a.name} vs ${c.b.name}`;
           state.presetId = null; saveState(); syncInputs(); render();
-          status.textContent = `"${c.a.name}" (${fmtEur(c.a.init)}) comparé à "${c.b.name}" (${fmtEur(c.b.init)}).`;
+          status.textContent = `"${c.a.name}" (${fmtEur(c.a.init)}) compare a "${c.b.name}" (${fmtEur(c.b.init)}).`;
           return;
         } catch (_) {
           status.textContent = "Analyse locale de repli...";
@@ -313,8 +372,8 @@ self.addEventListener("fetch", (event) => {
           const raw = res?.data?.text || "", foundPrice = extractPriceFromText(raw), foundCat = detectCategoryFromText(raw);
           if (foundPrice) price = foundPrice;
           if (foundCat !== "generic") { cat = foundCat; catSelect.value = foundCat; }
-          status.textContent = foundPrice ? `Prix détecté : ${fmtEur(price)} — Alternative proposée.` : `Base ${fmtEur(price)} appliquée.`;
-        } catch (_) { status.textContent = `Base ${fmtEur(price)} appliquée.`; }
+          status.textContent = foundPrice ? `Prix detecte : ${fmtEur(price)} - Alternative proposee.` : `Base ${fmtEur(price)} appliquee.`;
+        } catch (_) { status.textContent = `Base ${fmtEur(price)} appliquee.`; }
       }
       proposeAlternative(price, cat);
     }
@@ -322,12 +381,12 @@ self.addEventListener("fetch", (event) => {
     function renderSavedSims() {
       const list = document.getElementById("savedList");
       list.innerHTML = "";
-      if (!state.savedSims.length) { list.innerHTML = `<div class="scan-status">Aucun comparatif enregistré pour l'instant. Donnez un titre puis cliquez sur « Enregistrer ».</div>`; return; }
+      if (!state.savedSims.length) { list.innerHTML = `<div class="scan-status">Aucun comparatif enregistre pour l'instant. Donnez un titre puis cliquez sur "Enregistrer".</div>`; return; }
       state.savedSims.forEach((item, idx) => {
         const displayTitle = item.title || `${item.a.name} vs ${item.b.name}`;
         const row = document.createElement("div");
         row.className = "saved-item";
-        row.innerHTML = `<div><strong>${displayTitle}</strong><div class="saved-meta">${item.a.name} (${fmtEur(item.a.init)}) vs ${item.b.name} (${fmtEur(item.b.init)}) · ${item.years} ans · ${item.usesPerWeek}/sem · ${item.savedAt || ""}</div></div><div class="saved-actions"><button class="btn-ghost" data-load="${idx}" type="button">Charger</button><button class="btn-ghost" data-upd="${idx}" type="button">Mettre à jour</button><button class="btn-danger" data-del="${idx}" type="button">Suppr.</button></div>`;
+        row.innerHTML = `<div><strong>${displayTitle}</strong><div class="saved-meta">${item.a.name} (${fmtEur(item.a.init)}) vs ${item.b.name} (${fmtEur(item.b.init)}) · ${item.years} ans · ${item.usesPerWeek}/sem · ${item.savedAt || ""}</div></div><div class="saved-actions"><button class="btn-ghost" data-load="${idx}" type="button">Charger</button><button class="btn-ghost" data-upd="${idx}" type="button">Mettre a jour</button><button class="btn-danger" data-del="${idx}" type="button">Suppr.</button></div>`;
         list.appendChild(row);
       });
       list.querySelectorAll("[data-load]").forEach((btn) => btn.onclick = () => {
@@ -343,7 +402,7 @@ self.addEventListener("fetch", (event) => {
         snap.title = (snap.title || "").trim() || `${snap.a.name} vs ${snap.b.name}`;
         snap.savedAt = new Date().toLocaleDateString("fr-FR");
         state.savedSims[idx] = snap;
-        saveState(); renderSavedSims(); alert(`Comparatif « ${snap.title} » mis à jour !`);
+        saveState(); renderSavedSims(); alert(`Comparatif "${snap.title}" mis a jour !`);
       });
       list.querySelectorAll("[data-del]").forEach((btn) => btn.onclick = () => {
         const idx = Number(btn.dataset.del);
@@ -391,11 +450,11 @@ self.addEventListener("fetch", (event) => {
         saveState(); syncInputs(); render();
       };
       document.getElementById("photoInput").addEventListener("change", (e) => handlePhotoUpload(e.target.files?.[0]));
-      document.getElementById("saveSimBtn").onclick = () => { const snap = clone(state.current); snap.title = (snap.title || "").trim() || `${snap.a.name} vs ${snap.b.name}`; snap.savedAt = new Date().toLocaleDateString("fr-FR"); state.savedSims.unshift(snap); state.savedSims = state.savedSims.slice(0, 50); saveState(); renderSavedSims(); alert(`Comparatif « ${snap.title} » enregistré !`); };
+      document.getElementById("saveSimBtn").onclick = () => { const snap = clone(state.current); snap.title = (snap.title || "").trim() || `${snap.a.name} vs ${snap.b.name}`; snap.savedAt = new Date().toLocaleDateString("fr-FR"); state.savedSims.unshift(snap); state.savedSims = state.savedSims.slice(0, 50); saveState(); renderSavedSims(); alert(`Comparatif "${snap.title}" enregistre !`); };
       document.getElementById("exportJsonBtn").onclick = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(state.savedSims, null, 2)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = "coutreel-comparatifs.json"; a.click(); URL.revokeObjectURL(url); };
-      document.getElementById("importJsonInput").addEventListener("change", async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported)) { alert("Fichier JSON invalide."); return; } const valid = imported.filter((s) => s && s.a && s.b); if (!valid.length) { alert("Aucun comparatif valide."); return; } state.savedSims = [...valid, ...state.savedSims].slice(0, 50); saveState(); renderSavedSims(); alert(`${valid.length} comparatif(s) importé(s) !`); } catch (_) { alert("Impossible de lire ce fichier JSON."); } finally { e.target.value = ""; } });
+      document.getElementById("importJsonInput").addEventListener("change", async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported)) { alert("Fichier JSON invalide."); return; } const valid = imported.filter((s) => s && s.a && s.b); if (!valid.length) { alert("Aucun comparatif valide."); return; } state.savedSims = [...valid, ...state.savedSims].slice(0, 50); saveState(); renderSavedSims(); alert(`${valid.length} comparatif(s) importe(s) !`); } catch (_) { alert("Impossible de lire ce fichier JSON."); } finally { e.target.value = ""; } });
       document.getElementById("resetBtn").onclick = () => { state.current = clone(PRESETS.find((p) => p.id === state.presetId) || PRESETS[0]); saveState(); syncInputs(); render(); };
-      document.getElementById("shareBtn").onclick = async () => { const text = `${state.current.title ? `[${state.current.title}] ` : ""}${document.getElementById("verdictTitle").textContent} — ${document.getElementById("verdictSub").textContent}`; if (navigator.share) { try { await navigator.share({ title: "CoûtRéel", text }); return; } catch (_) {} } navigator.clipboard?.writeText(text); alert("Résumé copié !"); };
+      document.getElementById("shareBtn").onclick = async () => { const text = `${state.current.title ? `[${state.current.title}] ` : ""}${document.getElementById("verdictTitle").textContent} - ${document.getElementById("verdictSub").textContent}`; if (navigator.share) { try { await navigator.share({ title: "CoutReel", text }); return; } catch (_) {} } navigator.clipboard?.writeText(text); alert("Resume copie !"); };
 
       const canvas = document.getElementById("chartCanvas");
       const updateHover = (clientX) => {
@@ -408,7 +467,7 @@ self.addEventListener("fetch", (event) => {
         const va = costAtMonth(state.current.a, m, state.current.usesPerWeek);
         const vb = costAtMonth(state.current.b, m, state.current.usesPerWeek);
         document.getElementById("hoverReadout").textContent =
-          `À ${m} mois (${(m / 12).toFixed(1)} ans) — ${state.current.a.name} : ${fmtEur(va)} · ${state.current.b.name} : ${fmtEur(vb)}`;
+          `A ${m} mois (${(m / 12).toFixed(1)} ans) - ${state.current.a.name} : ${fmtEur(va)} · ${state.current.b.name} : ${fmtEur(vb)}`;
       };
       canvas.addEventListener("mousemove", (e) => updateHover(e.clientX));
       canvas.addEventListener("touchmove", (e) => { if (e.touches?.[0]) updateHover(e.touches[0].clientX); }, { passive: true });
@@ -423,7 +482,7 @@ self.addEventListener("fetch", (event) => {
       for (let m = 0; m <= months; m++) { const va = costAtMonth(c.a, m, c.usesPerWeek), vb = costAtMonth(c.b, m, c.usesPerWeek); ptsA.push(va); ptsB.push(vb); maxVal = Math.max(maxVal, va, vb); }
       maxVal = Math.ceil(maxVal * 1.1); ctx.clearRect(0, 0, w, h);
       ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 1; ctx.fillStyle = "#94a3b8"; ctx.font = "11px sans-serif";
-      for (let i = 0; i <= 4; i++) { const r = i / 4, y = pad.top + plotH * (1 - r); ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke(); ctx.fillText(Math.round(maxVal * r) + " €", 6, y + 4); }
+      for (let i = 0; i <= 4; i++) { const r = i / 4, y = pad.top + plotH * (1 - r); ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke(); ctx.fillText(Math.round(maxVal * r) + " \u20ac", 6, y + 4); }
       for (let yr = 0; yr <= c.years; yr++) { const x = pad.left + (yr / c.years) * plotW; ctx.fillText(yr + "a", x - 6, h - 10); }
       function plotLine(pts, color) { ctx.strokeStyle = color; ctx.lineWidth = 2.8; ctx.beginPath(); pts.forEach((val, idx) => { const x = pad.left + (idx / months) * plotW, y = pad.top + plotH * (1 - val / maxVal); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); }
       plotLine(ptsA, "#38bdf8"); plotLine(ptsB, "#f97316");
@@ -441,9 +500,9 @@ self.addEventListener("fetch", (event) => {
       const diff = Math.abs(totalA - totalB), winner = totalA <= totalB ? c.a.name : c.b.name, loser = totalA <= totalB ? c.b.name : c.a.name;
       document.getElementById("valSavings").textContent = fmtEur(diff);
       const beMonth = findBreakevenMonth(c.a, c.b, c.years, c.usesPerWeek);
-      document.getElementById("valBreakeven").textContent = beMonth ? `Point de bascule : ${beMonth} mois` : "Point de bascule : aucun sur la période";
-      document.getElementById("verdictTitle").textContent = `${winner} est plus économique de ${fmtEur(diff)} sur ${c.years} ans`;
-      document.getElementById("verdictSub").textContent = beMonth ? `L'écart s'inverse au bout de ${beMonth} mois d'utilisation (${c.usesPerWeek} fois/semaine), revente incluse.` : `Sur ${c.years} ans à ${c.usesPerWeek} utilisations/semaine, ${winner} reste devant ${loser}.`;
+      document.getElementById("valBreakeven").textContent = beMonth ? `Point de bascule : ${beMonth} mois` : "Point de bascule : aucun sur la periode";
+      document.getElementById("verdictTitle").textContent = `${winner} est plus economique de ${fmtEur(diff)} sur ${c.years} ans`;
+      document.getElementById("verdictSub").textContent = beMonth ? `L'ecart s'inverse au bout de ${beMonth} mois d'utilisation (${c.usesPerWeek} fois/semaine), revente incluse.` : `Sur ${c.years} ans a ${c.usesPerWeek} utilisations/semaine, ${winner} reste devant ${loser}.`;
       renderPresets(); renderSavedSims(); drawChart(c);
     }
 
