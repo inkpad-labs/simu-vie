@@ -14,8 +14,19 @@ export default {
 
     if (url.pathname === "/analyze" && request.method === "POST") {
       try {
+        if (!env.GEMINI_API_KEY) {
+          return new Response(
+            JSON.stringify({ error: "Variable GEMINI_API_KEY absente sur le Worker" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         const body = await request.json();
-        const { imageBase64, mimeType, queryText, category } = body;
+        const { imageBase64, mimeType, queryText, category } = body || {};
+
+        const cleanBase64 = imageBase64
+          ? imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
+          : null;
 
         const prompt = `Tu es un expert en consommation domestique et calcul de coût réel (TCO) pour un particulier à domicile.
 Analyse la demande (photo et/ou texte d'article).
@@ -49,32 +60,60 @@ Réponds UNIQUEMENT avec un objet JSON valide (sans markdown, sans texte autour)
             text: `Article recherché : "${queryText || "non précisé"}" | Catégorie indiquée : "${category || "generic"}"`
           });
         }
-        if (imageBase64) {
+        if (cleanBase64) {
           parts.push({
             inline_data: {
               mime_type: mimeType || "image/jpeg",
-              data: imageBase64
+              data: cleanBase64
             }
           });
         }
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+        const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+        const keyValue = env.GEMINI_API_KEY.trim();
 
-        const apiRes = await fetch(apiUrl, {
+        const headers = {
+          "Content-Type": "application/json",
+          "x-goog-api-key": keyValue
+        };
+
+        let apiRes = await fetch(apiUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: { response_mime_type: "application/json" }
           })
         });
 
-        const data = await apiRes.json();
-        if (!apiRes.ok) {
-          return new Response(JSON.stringify({ error: data.error?.message || "Erreur Gemini" }), {
-            status: 502,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+        let data = await apiRes.json().catch(() => ({}));
+
+        // Si x-goog-api-key renvoie 401/403 avec un jeton AQ..., tente aussi en Bearer
+        if (!apiRes.ok && (apiRes.status === 401 || apiRes.status === 403) && keyValue.startsWith("AQ.")) {
+          apiRes = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${keyValue}`
+            },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: { response_mime_type: "application/json" }
+            })
           });
+          data = await apiRes.json().catch(() => ({}));
+        }
+
+        if (!apiRes.ok) {
+          return new Response(
+            JSON.stringify({
+              error: `Gemini HTTP ${apiRes.status}: ${data?.error?.message || "Erreur inconnue"}`
+            }),
+            {
+              status: apiRes.status,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            }
+          );
         }
 
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
