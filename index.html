@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1120" />
-  <meta name="description" content="Photographiez un article et son prix en magasin, comparez une alternative avec IA ou OCR, et sauvegardez vos comparatifs." />
+  <meta name="description" content="Calculez le coût réel d'un achat sur la durée par photo ou par recherche d'article." />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <title>CoûtRéel — Simulateur TCO</title>
@@ -26,22 +26,26 @@
     * { box-sizing: border-box; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; padding-bottom: 64px; }
     header { position: sticky; top: 0; z-index: 10; background: rgba(11, 17, 32, 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; cursor: pointer; }
     .brand-dot { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-a), var(--good)); }
     .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .btn-primary { background: var(--accent-a); color: #061220; border: none; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: var(--accent-a); color: #061220; border: none; border-radius: 999px; padding: 9px 15px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .btn-good { background: var(--good); color: #052e16; border: none; border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 0.84rem; cursor: pointer; }
     .btn-ghost { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 12px; font-size: 0.84rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .btn-danger { background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; border-radius: 8px; padding: 5px 9px; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
     main { max-width: 960px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
-    .scan-box { background: var(--surface); border: 1px dashed rgba(56, 189, 248, 0.55); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 12px; }
+    .welcome { background: linear-gradient(145deg, rgba(56, 189, 248, 0.14), rgba(17, 24, 39, 0.96)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: var(--radius); padding: 22px 18px; display: grid; gap: 14px; }
+    .welcome h1 { margin: 0; font-size: 1.4rem; }
+    .welcome p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+    .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .scan-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 12px; }
     .scan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .search-row { display: grid; grid-template-columns: 1.5fr 0.8fr 1fr auto; gap: 8px; }
+    @media (max-width: 720px) { .search-row { grid-template-columns: 1fr 1fr; } }
     .scan-preview { display: none; gap: 12px; align-items: center; background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
     .scan-preview.visible { display: flex; }
     .scan-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .scan-status { font-size: 0.85rem; color: var(--muted); }
-    details.ai-config { background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 0.85rem; }
-    details.ai-config summary { cursor: pointer; font-weight: 600; color: var(--accent-a); }
     .presets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .presets::-webkit-scrollbar { display: none; }
     .preset-chip { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 9px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
@@ -69,7 +73,7 @@
     .field-top { display: flex; justify-content: space-between; font-size: 0.86rem; margin-bottom: 4px; }
     .field-val { font-weight: 700; }
     input[type="range"] { width: 100%; accent-color: var(--accent-a); cursor: pointer; }
-    input[type="number"], input[type="text"], input[type="url"], select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 0.9rem; }
+    input[type="number"], input[type="text"], select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 0.9rem; }
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .saved-list { display: grid; gap: 8px; }
     .saved-item { background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -79,46 +83,54 @@
 </head>
 <body>
   <header>
-    <div class="brand"><span class="brand-dot"></span><span>CoûtRéel</span></div>
+    <div class="brand" id="homeLogo"><span class="brand-dot"></span><span>CoûtRéel</span></div>
     <div class="header-actions">
+      <button id="showWelcomeBtn" class="btn-ghost" type="button">Accueil</button>
       <button id="saveSimBtn" class="btn-good" type="button">Enregistrer</button>
       <button id="shareBtn" class="btn-ghost" type="button">Partager</button>
     </div>
   </header>
 
   <main>
+    <section id="welcomeScreen" class="welcome">
+      <h1>Comparez le vrai coût d'un achat sur la durée</h1>
+      <p>Ne vous fiez pas qu'au prix en rayon : intégrez le coût par utilisation, l'entretien annuel et la revente pour voir quelle option revient vraiment moins cher.</p>
+      <div class="welcome-actions">
+        <button id="startSimBtn" class="btn-primary" type="button">Accéder au comparateur</button>
+        <button id="focusSearchBtn" class="btn-ghost" type="button">🔍 Chercher un article</button>
+        <label class="btn-ghost" for="photoInput" style="cursor:pointer;">📷 Scanner par photo</label>
+      </div>
+    </section>
+
     <section class="scan-box">
       <div class="scan-top">
         <div>
-          <strong style="font-size:0.95rem;">📷 Scanner un article en rayon</strong>
-          <div class="scan-status">Photo de l'objet/prix → analyse IA native (ou repli OCR local) + proposition d'alternative</div>
+          <strong style="font-size:0.95rem;">🔍 Chercher un article ou scanner en rayon</strong>
+          <div class="scan-status">Saisissez un article & son prix, ou prenez une photo pour obtenir une proposition d'alternative</div>
         </div>
-        <label class="btn-primary" for="photoInput"><span>Prendre / choisir photo</span></label>
+        <label class="btn-primary" for="photoInput"><span>📷 Photo</span></label>
         <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" />
       </div>
+
+      <div class="search-row">
+        <input id="searchItemInput" type="text" placeholder="Ex. Capsules café, Imprimante jet d'encre..." />
+        <input id="searchPriceInput" type="number" min="0" step="0.5" placeholder="Prix (€)" />
+        <select id="catSelect">
+          <option value="generic">Catégorie : Général</option>
+          <option value="coffee">Café / Boissons</option>
+          <option value="printer">Impression / Bureau</option>
+          <option value="mobility">Mobilité / Trajet</option>
+          <option value="tool">Outillage / Maison</option>
+        </select>
+        <button id="searchGoBtn" class="btn-good" type="button">Comparer</button>
+      </div>
+
       <div id="scanPreview" class="scan-preview">
         <img id="thumbImg" alt="Aperçu" />
-        <div style="flex:1;display:grid;gap:8px;">
+        <div style="flex:1;display:grid;gap:6px;">
           <div id="scanStatus" class="scan-status">Analyse en cours...</div>
-          <div class="row-2">
-            <select id="catSelect">
-              <option value="generic">Catégorie : Général</option>
-              <option value="coffee">Café / Boissons</option>
-              <option value="printer">Impression / Bureau</option>
-              <option value="mobility">Mobilité / Trajet</option>
-              <option value="tool">Outillage / Maison</option>
-            </select>
-            <button id="applyAltBtn" class="btn-ghost" type="button">Proposer alternative</button>
-          </div>
         </div>
       </div>
-      <details class="ai-config">
-        <summary>⚙️ Endpoint IA (préconfiguré / surchargeable)</summary>
-        <div style="margin-top:8px;display:grid;gap:8px;">
-          <label style="color:var(--muted);font-size:0.8rem;">URL du proxy IA :</label>
-          <input id="aiEndpointInput" type="url" placeholder="https://simu-vie.t4tcv52mfj.workers.dev/analyze" />
-        </div>
-      </details>
     </section>
 
     <div id="presetsBar" class="presets"></div>
@@ -158,7 +170,7 @@
 
     <section class="grid-2">
       <div class="card">
-        <h2 class="card-title col-a" style="margin-bottom: 12px;">Option A (Article scanné / 1er choix)</h2>
+        <h2 class="card-title col-a" style="margin-bottom: 12px;">Option A (Article choisi)</h2>
         <div class="field"><label class="field-top"><span>Nom</span></label><input id="nameA" type="text" /></div>
         <div class="row-2">
           <div class="field"><label class="field-top"><span>Achat initial (€)</span></label><input id="initA" type="number" min="0" step="0.5" /></div>
@@ -195,7 +207,6 @@
       <div id="savedList" class="saved-list"></div>
     </section>
   </main>
-
   <script>
     const DEFAULT_AI_ENDPOINT = "https://simu-vie.t4tcv52mfj.workers.dev/analyze";
 
@@ -210,10 +221,10 @@
       printer: { nameA: "Modèle entrée de gamme (encre)", unitA: 0.18, annualA: 0, resaleA: 0, nameB: "Alternative plus durable / toner", initMultB: 3.2, initAddB: 60, unitB: 0.04, annualB: 10, resaleB: 25, usesPerWeek: 10 },
       mobility: { nameA: "Option usage / carburant élevé", unitA: 2.5, annualA: 80, resaleA: 0, nameB: "Alternative plus sobre / durable", initMultB: 1.8, initAddB: 250, unitB: 0.7, annualB: 100, resaleB: 200, usesPerWeek: 7 },
       tool: { nameA: "Équipement neuf standard", unitA: 0.5, annualA: 20, resaleA: 15, nameB: "Alternative occasion / pro durable", initMultB: 1.4, initAddB: 40, unitB: 0.2, annualB: 25, resaleB: 50, usesPerWeek: 4 },
-      generic: { nameA: "Article scanné", unitA: 0.5, annualA: 10, resaleA: 0, nameB: "Alternative à coût d'usage réduit", initMultB: 2.2, initAddB: 50, unitB: 0.15, annualB: 20, resaleB: 25, usesPerWeek: 7 }
+      generic: { nameA: "Article choisi", unitA: 0.5, annualA: 10, resaleA: 0, nameB: "Alternative à coût d'usage réduit", initMultB: 2.2, initAddB: 50, unitB: 0.15, annualB: 20, resaleB: 25, usesPerWeek: 7 }
     };
 
-    const STORAGE_KEY = "coutreel_state_v7";
+    const STORAGE_KEY = "coutreel_state_v8";
     let state = loadState();
     function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
@@ -225,11 +236,11 @@
             presetId: saved.presetId ?? PRESETS[0].id,
             current: { title: saved.current.title || `${saved.current.a?.name || "Option A"} vs ${saved.current.b?.name || "Option B"}`, ...saved.current },
             savedSims: Array.isArray(saved.savedSims) ? saved.savedSims : [],
-            aiEndpoint: DEFAULT_AI_ENDPOINT || saved.aiEndpoint || ""
+            showWelcome: saved.showWelcome !== false
           };
         }
       } catch (_) {}
-      return { presetId: PRESETS[0].id, current: clone(PRESETS[0]), savedSims: [], aiEndpoint: DEFAULT_AI_ENDPOINT };
+      return { presetId: PRESETS[0].id, current: clone(PRESETS[0]), savedSims: [], showWelcome: true };
     }
 
     function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -267,12 +278,24 @@
 
     function proposeAlternative(priceA, catKey, detectedLabel) {
       const tpl = ALT_TEMPLATES[catKey] || ALT_TEMPLATES.generic;
-      const basePrice = Math.max(5, Number(priceA) || 50);
+      const basePrice = Math.max(1, Number(priceA) || 49);
       const c = state.current;
       c.a.name = detectedLabel || tpl.nameA; c.a.init = basePrice; c.a.unit = tpl.unitA; c.a.annual = tpl.annualA; c.a.resale = tpl.resaleA;
       c.b.name = tpl.nameB; c.b.init = Math.round(basePrice * tpl.initMultB + tpl.initAddB); c.b.unit = tpl.unitB; c.b.annual = tpl.annualB; c.b.resale = tpl.resaleB;
       c.usesPerWeek = tpl.usesPerWeek; c.title = `${c.a.name} vs ${c.b.name}`;
-      state.presetId = null; saveState(); syncInputs(); render();
+      state.presetId = null; state.showWelcome = false; saveState(); syncInputs(); render();
+    }
+
+    function handleTextSearch() {
+      const query = document.getElementById("searchItemInput").value.trim();
+      const priceVal = Number(document.getElementById("searchPriceInput").value);
+      let cat = document.getElementById("catSelect").value;
+      if (cat === "generic" && query) {
+        const inferred = detectCategoryFromText(query);
+        if (inferred !== "generic") { cat = inferred; document.getElementById("catSelect").value = inferred; }
+      }
+      const price = priceVal > 0 ? priceVal : (Number(document.getElementById("initA").value) || 49);
+      proposeAlternative(price, cat, query || "Article recherché");
     }
 
     async function compressImageToBase64(file, maxWidth = 900, quality = 0.72) {
@@ -294,15 +317,15 @@
 
     async function handlePhotoUpload(file) {
       if (!file) return;
+      state.showWelcome = false;
       const preview = document.getElementById("scanPreview"), status = document.getElementById("scanStatus"), catSelect = document.getElementById("catSelect");
       preview.classList.add("visible");
       document.getElementById("thumbImg").src = URL.createObjectURL(file);
 
-      const endpoint = (DEFAULT_AI_ENDPOINT || state.aiEndpoint || "").trim();
-      if (endpoint) {
-        status.textContent = "Analyse IA en cours...";
+      if (DEFAULT_AI_ENDPOINT) {
+        status.textContent = "Analyse en cours...";
         try {
-          const ai = await analyzeWithAI(endpoint, file);
+          const ai = await analyzeWithAI(DEFAULT_AI_ENDPOINT, file);
           const c = state.current;
           c.a.name = ai.nomA || "Article détecté"; c.a.init = Number(ai.initA) || 49; c.a.unit = Number(ai.unitA) || 0.2; c.a.annual = Number(ai.annualA) || 0; c.a.resale = Number(ai.resaleA) || 0;
           c.b.name = ai.nomB || "Alternative proposée"; c.b.init = Number(ai.initB) || Math.round(c.a.init * 2); c.b.unit = Number(ai.unitB) || 0.1; c.b.annual = Number(ai.annualB) || 0; c.b.resale = Number(ai.resaleB) || 0;
@@ -310,14 +333,13 @@
           if (ai.years) c.years = Math.min(10, Math.max(1, Number(ai.years)));
           c.title = ai.titre || `${c.a.name} vs ${c.b.name}`;
           state.presetId = null; saveState(); syncInputs(); render();
-          status.textContent = `IA : "${c.a.name}" (${fmtEur(c.a.init)}) comparé à "${c.b.name}" (${fmtEur(c.b.init)}).`;
+          status.textContent = `"${c.a.name}" (${fmtEur(c.a.init)}) comparé à "${c.b.name}" (${fmtEur(c.b.init)}).`;
           return;
-        } catch (err) {
-          status.textContent = `IA indisponible (${err.message}), repli sur OCR local...`;
+        } catch (_) {
+          status.textContent = "Analyse hors-ligne / locale...";
         }
       }
 
-      status.textContent = "Lecture du prix sur la photo (OCR local)...";
       let price = Number(document.getElementById("initA").value) || 49, cat = catSelect.value;
       if (window.Tesseract) {
         try {
@@ -325,8 +347,8 @@
           const raw = res?.data?.text || "", foundPrice = extractPriceFromText(raw), foundCat = detectCategoryFromText(raw);
           if (foundPrice) price = foundPrice;
           if (foundCat !== "generic") { cat = foundCat; catSelect.value = foundCat; }
-          status.textContent = foundPrice ? `Prix détecté : ${fmtEur(price)} — Alternative proposée.` : `Prix non lu : base ${fmtEur(price)} appliquée.`;
-        } catch (_) { status.textContent = `OCR hors-ligne : base ${fmtEur(price)} appliquée.`; }
+          status.textContent = foundPrice ? `Prix détecté : ${fmtEur(price)} — Alternative proposée.` : `Base ${fmtEur(price)} appliquée.`;
+        } catch (_) { status.textContent = `Base ${fmtEur(price)} appliquée.`; }
       }
       proposeAlternative(price, cat);
     }
@@ -342,18 +364,18 @@
         row.innerHTML = `<div><strong>${displayTitle}</strong><div class="saved-meta">${item.a.name} (${fmtEur(item.a.init)}) vs ${item.b.name} (${fmtEur(item.b.init)}) · ${item.years} ans · ${item.usesPerWeek}/sem · ${item.savedAt || ""}</div></div><div class="saved-actions"><button class="btn-ghost" data-load="${idx}" type="button">Charger</button><button class="btn-danger" data-del="${idx}" type="button">Suppr.</button></div>`;
         list.appendChild(row);
       });
-      list.querySelectorAll("[data-load]").forEach((btn) => btn.onclick = () => { const sim = state.savedSims[Number(btn.dataset.load)]; if (!sim) return; state.current = clone(sim); state.presetId = null; saveState(); syncInputs(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+      list.querySelectorAll("[data-load]").forEach((btn) => btn.onclick = () => { const sim = state.savedSims[Number(btn.dataset.load)]; if (!sim) return; state.current = clone(sim); state.presetId = null; state.showWelcome = false; saveState(); syncInputs(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
       list.querySelectorAll("[data-del]").forEach((btn) => btn.onclick = () => { state.savedSims.splice(Number(btn.dataset.del), 1); saveState(); renderSavedSims(); });
     }
 
     function renderPresets() {
       const bar = document.getElementById("presetsBar"); bar.innerHTML = "";
-      PRESETS.forEach((p) => { const btn = document.createElement("button"); btn.className = "preset-chip" + (state.presetId === p.id ? " active" : ""); btn.textContent = p.label; btn.onclick = () => { state.presetId = p.id; state.current = clone(p); saveState(); syncInputs(); render(); }; bar.appendChild(btn); });
+      PRESETS.forEach((p) => { const btn = document.createElement("button"); btn.className = "preset-chip" + (state.presetId === p.id ? " active" : ""); btn.textContent = p.label; btn.onclick = () => { state.presetId = p.id; state.current = clone(p); state.showWelcome = false; saveState(); syncInputs(); render(); }; bar.appendChild(btn); });
     }
 
     function syncInputs() {
       const c = state.current;
-      document.getElementById("simTitle").value = c.title || ""; document.getElementById("aiEndpointInput").value = DEFAULT_AI_ENDPOINT || state.aiEndpoint || "";
+      document.getElementById("simTitle").value = c.title || "";
       document.getElementById("inUsesWeek").value = c.usesPerWeek; document.getElementById("inYears").value = c.years;
       document.getElementById("nameA").value = c.a.name; document.getElementById("initA").value = c.a.init; document.getElementById("unitA").value = c.a.unit; document.getElementById("annualA").value = c.a.annual; document.getElementById("resaleA").value = c.a.resale;
       document.getElementById("nameB").value = c.b.name; document.getElementById("initB").value = c.b.init; document.getElementById("unitB").value = c.b.unit; document.getElementById("annualB").value = c.b.annual; document.getElementById("resaleB").value = c.b.resale;
@@ -363,9 +385,13 @@
       const c = state.current;
       const map = [["simTitle", (v) => (c.title = v)], ["inUsesWeek", (v) => (c.usesPerWeek = Math.max(1, Number(v) || 1))], ["inYears", (v) => (c.years = Math.max(1, Number(v) || 1))], ["nameA", (v) => (c.a.name = v || "Option A")], ["initA", (v) => (c.a.init = Math.max(0, Number(v) || 0))], ["unitA", (v) => (c.a.unit = Math.max(0, Number(v) || 0))], ["annualA", (v) => (c.a.annual = Math.max(0, Number(v) || 0))], ["resaleA", (v) => (c.a.resale = Math.max(0, Number(v) || 0))], ["nameB", (v) => (c.b.name = v || "Option B")], ["initB", (v) => (c.b.init = Math.max(0, Number(v) || 0))], ["unitB", (v) => (c.b.unit = Math.max(0, Number(v) || 0))], ["annualB", (v) => (c.b.annual = Math.max(0, Number(v) || 0))], ["resaleB", (v) => (c.b.resale = Math.max(0, Number(v) || 0))]];
       map.forEach(([id, fn]) => document.getElementById(id).addEventListener("input", (e) => { fn(e.target.value); saveState(); render(); }));
-      document.getElementById("aiEndpointInput").addEventListener("input", (e) => { state.aiEndpoint = e.target.value.trim(); saveState(); });
+      document.getElementById("showWelcomeBtn").onclick = () => { state.showWelcome = true; saveState(); render(); };
+      document.getElementById("homeLogo").onclick = () => { state.showWelcome = true; saveState(); render(); };
+      document.getElementById("startSimBtn").onclick = () => { state.showWelcome = false; saveState(); render(); };
+      document.getElementById("focusSearchBtn").onclick = () => { state.showWelcome = false; saveState(); render(); document.getElementById("searchItemInput").focus(); };
+      document.getElementById("searchGoBtn").onclick = handleTextSearch;
+      document.getElementById("searchItemInput").addEventListener("keydown", (e) => { if (e.key === "Enter") handleTextSearch(); });
       document.getElementById("photoInput").addEventListener("change", (e) => handlePhotoUpload(e.target.files?.[0]));
-      document.getElementById("applyAltBtn").addEventListener("click", () => proposeAlternative(Number(document.getElementById("initA").value) || 49, document.getElementById("catSelect").value));
       document.getElementById("saveSimBtn").onclick = () => { const snap = clone(state.current); snap.title = (snap.title || "").trim() || `${snap.a.name} vs ${snap.b.name}`; snap.savedAt = new Date().toLocaleDateString("fr-FR"); state.savedSims.unshift(snap); state.savedSims = state.savedSims.slice(0, 50); saveState(); renderSavedSims(); alert(`Comparatif « ${snap.title} » enregistré !`); };
       document.getElementById("exportJsonBtn").onclick = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(state.savedSims, null, 2)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = "coutreel-comparatifs.json"; a.click(); URL.revokeObjectURL(url); };
       document.getElementById("importJsonInput").addEventListener("change", async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported)) { alert("Fichier JSON invalide."); return; } const valid = imported.filter((s) => s && s.a && s.b); if (!valid.length) { alert("Aucun comparatif valide."); return; } state.savedSims = [...valid, ...state.savedSims].slice(0, 50); saveState(); renderSavedSims(); alert(`${valid.length} comparatif(s) importé(s) !`); } catch (_) { alert("Impossible de lire ce fichier JSON."); } finally { e.target.value = ""; } });
@@ -389,6 +415,7 @@
     }
 
     function render() {
+      document.getElementById("welcomeScreen").style.display = state.showWelcome ? "grid" : "none";
       const c = state.current;
       document.getElementById("outUsesWeek").textContent = c.usesPerWeek + " / sem"; document.getElementById("outYears").textContent = c.years + (c.years > 1 ? " ans" : " an");
       document.getElementById("labelTotalA").textContent = c.a.name; document.getElementById("labelTotalB").textContent = c.b.name;
