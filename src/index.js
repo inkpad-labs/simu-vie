@@ -1,3 +1,27 @@
+async function fetchGeminiWithRetry(endpoint, payload, retries = 3) {
+  let lastRes = null;
+  let lastText = "";
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+
+    if (res.ok || (res.status !== 503 && res.status !== 429) || attempt === retries) {
+      return { res, text, attempts: attempt + 1 };
+    }
+
+    lastRes = res;
+    lastText = text;
+    await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+  }
+
+  return { res: lastRes, text: lastText, attempts: retries + 1 };
+}
+
 export default {
   async fetch(request, env) {
     const cors = {
@@ -24,20 +48,16 @@ export default {
         }
 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(key)}`;
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "Réponds uniquement par le mot OK." }] }]
-          })
+        const { res, text, attempts } = await fetchGeminiWithRetry(endpoint, {
+          contents: [{ parts: [{ text: "Réponds uniquement par le mot OK." }] }]
         });
 
-        const textBody = await res.text();
         return new Response(JSON.stringify({
           ok: res.ok,
           status: res.status,
+          attempts,
           model: modelName,
-          geminiResponse: textBody.slice(0, 600)
+          geminiResponse: text.slice(0, 600)
         }), {
           status: 200,
           headers: { ...cors, "Content-Type": "application/json" }
@@ -67,7 +87,7 @@ export default {
           ? imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "")
           : null;
 
-        const prompt = `Tu es un expert en consommation domestique et calcul de coût réel (TCO) pour un particulier à domicile.
+        const prompt = `Tu es un expert en consommation domestique et calcul de coût réel (TCO) pour un particulier.
 Analyse la demande (photo et/ou texte d'article).
 Règles :
 1. Estime le prix moyen neuf grand public en euros (initA) pour un usage à domicile (pas de matériel industriel ou professionnel sauf si explicitement demandé).
@@ -107,16 +127,11 @@ Réponds UNIQUEMENT avec un objet JSON valide (sans markdown, sans texte autour)
         }
 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(key)}`;
-        const apiRes = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { response_mime_type: "application/json" }
-          })
+        const { res: apiRes, text: raw } = await fetchGeminiWithRetry(endpoint, {
+          contents: [{ parts }],
+          generationConfig: { response_mime_type: "application/json" }
         });
 
-        const raw = await apiRes.text();
         if (!apiRes.ok) {
           return new Response(JSON.stringify({ error: `Gemini ${apiRes.status}: ${raw.slice(0, 300)}` }), {
             status: 400,
