@@ -388,6 +388,7 @@
       preview.classList.add("visible");
       document.getElementById("thumbImg").src = URL.createObjectURL(file);
 
+      let aiErrMsg = "";
       if (DEFAULT_AI_ENDPOINT) {
         status.textContent = "Analyse en cours...";
         try {
@@ -402,7 +403,7 @@
           status.textContent = `"${c.a.name}" (${fmtEur(c.a.init)}) compare a "${c.b.name}" (${fmtEur(c.b.init)}).`;
           return;
         } catch (err) {
-          status.textContent = `IA non jointe (${err.message}) - repli OCR...`;
+          aiErrMsg = err?.message || "erreur IA";
         }
       }
 
@@ -413,8 +414,12 @@
           const raw = res?.data?.text || "", foundPrice = extractPriceFromText(raw), foundCat = detectCategoryFromText(raw);
           if (foundPrice) price = foundPrice;
           if (foundCat !== "generic") { cat = foundCat; catSelect.value = foundCat; }
-          status.textContent = foundPrice ? `Prix detecte : ${fmtEur(price)} - Alternative proposee.` : `Base ${fmtEur(price)} appliquee.`;
-        } catch (_) { status.textContent = `Base ${fmtEur(price)} appliquee.`; }
+          status.textContent = (aiErrMsg ? `[Erreur IA : ${aiErrMsg}] ` : "") + (foundPrice ? `Prix detecte : ${fmtEur(price)} - Alternative proposee.` : `Base ${fmtEur(price)} appliquee.`);
+        } catch (_) {
+          status.textContent = (aiErrMsg ? `[Erreur IA : ${aiErrMsg}] ` : "") + `Base ${fmtEur(price)} appliquee.`;
+        }
+      } else if (aiErrMsg) {
+        status.textContent = `Erreur IA : ${aiErrMsg}`;
       }
       proposeAlternative(price, cat);
     }
